@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Présentateur — Quiz Théâtre</title>
+  <link rel="stylesheet" href="../assets/css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+  <div id="pin-gate" class="landing">
+    <div class="card stack" style="max-width:360px">
+      <h2>Accès présentateur</h2>
+      <input id="pin-input" type="password" placeholder="Code PIN" autofocus />
+      <button id="pin-submit">Entrer</button>
+      <p id="pin-error" class="muted hidden">Code incorrect.</p>
+    </div>
+  </div>
+
+  <div id="app" class="hidden" style="display:flex; flex-direction:column; min-height:100vh;">
+    <header class="presenter-header spread">
+      <h1 style="margin:0; cursor:pointer" id="home-link">Quiz Théâtre — Présentateur</h1>
+      <div class="row">
+        <span id="session-status-badge" class="badge">Aucune session</span>
+        <button class="secondary" id="session-mgmt-btn">⚙ Session</button>
+      </div>
+    </header>
+
+    <main style="flex:1; display:flex; flex-direction:column;">
+
+      <section id="view-home" class="view active" style="flex:1; display:flex; align-items:center; justify-content:center; padding:2rem;">
+        <div class="home-quiz-grid">
+          <button class="quiz-home-btn" data-quiz="quiz-1">
+            <span class="quiz-home-title">Quiz 1</span>
+            <span class="quiz-home-status muted" data-status="quiz-1">Non commencé</span>
+          </button>
+          <button class="quiz-home-btn" data-quiz="quiz-2">
+            <span class="quiz-home-title">Quiz 2</span>
+            <span class="quiz-home-status muted" data-status="quiz-2">Non commencé</span>
+          </button>
+          <button class="quiz-home-btn" data-quiz="quiz-3">
+            <span class="quiz-home-title">Quiz 3</span>
+            <span class="quiz-home-status muted" data-status="quiz-3">Non commencé</span>
+          </button>
+        </div>
+      </section>
+
+      <section id="view-session" class="view" style="padding:1.5rem;">
+        <button class="secondary back-btn" data-back>← Accueil</button>
+
+        <div id="no-session-view" class="card center stack hidden" style="max-width:480px;margin:1.5rem auto">
+          <p>Aucune session active.</p>
+          <button id="create-session-btn">Créer une session</button>
+        </div>
+
+        <div id="session-view" class="session-grid hidden" style="margin-top:1.5rem">
+          <div class="card stack">
+            <div id="qrcode-container"></div>
+            <div class="session-code" id="session-code-text">------</div>
+            <p class="muted center">Scannez le QR code ou entrez le code sur la page public</p>
+            <div class="row" style="justify-content:center">
+              <button class="secondary" id="end-session-btn">Terminer la session</button>
+              <button class="danger" id="regen-session-btn">Nouveau code</button>
+            </div>
+          </div>
+
+          <div class="card stack">
+            <div class="spread">
+              <h3 style="margin:0">Participants</h3>
+              <span class="badge" id="participant-count">0</span>
+            </div>
+            <p class="muted" style="margin:0">Double-clic sur un participant pour l'exclure</p>
+            <ul class="participant-list" id="participant-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-quiz-1" class="view" data-quiz-id="quiz-1" style="padding:1.5rem;">
+        <button class="secondary back-btn" data-back>← Accueil</button>
+        <div id="tab-quiz-1" style="margin-top:1.5rem"></div>
+      </section>
+      <section id="view-quiz-2" class="view" data-quiz-id="quiz-2" style="padding:1.5rem;">
+        <button class="secondary back-btn" data-back>← Accueil</button>
+        <div id="tab-quiz-2" style="margin-top:1.5rem"></div>
+      </section>
+      <section id="view-quiz-3" class="view" data-quiz-id="quiz-3" style="padding:1.5rem;">
+        <button class="secondary back-btn" data-back>← Accueil</button>
+        <div id="tab-quiz-3" style="margin-top:1.5rem"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <script type="module" src="../assets/js/presenter.js"></script>
+</body>
+</html>

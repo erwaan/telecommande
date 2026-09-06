@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Pointeur vers le code de session actuellement actif (lu par la page présentateur au chargement)
+    match /meta/activeSession {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /sessions/{sessionCode} {
+      allow read: if true;
+      allow create, update: if request.auth != null;
+      allow delete: if false;
+
+      match /participants/{participantId} {
+        allow read: if true;
+        // Un participant ne peut créer que SA propre fiche (id = son uid Firebase Auth anonyme)
+        allow create: if request.auth != null && request.auth.uid == participantId;
+        // Mise à jour ouverte aux utilisateurs authentifiés : nécessaire pour que le présentateur
+        // (qui n'a pas de rôle dédié dans cette version simple) puisse exclure un participant.
+        allow update: if request.auth != null;
+        allow delete: if false;
+      }
+
+      match /votes/{voteId} {
+        allow read: if true;
+        // Un participant ne peut écrire que ses propres votes
+        allow create, update: if request.auth != null
+                               && request.resource.data.participantId == request.auth.uid;
+        allow delete: if false;
+      }
+    }
+  }
+}

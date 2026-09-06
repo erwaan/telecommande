@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiz Théâtre</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <div class="public-shell">
+
+    <div id="join-view" class="stack">
+      <h1 class="center">Rejoindre le quiz</h1>
+      <div class="card stack">
+        <label for="code-input">Code de session</label>
+        <input id="code-input" type="text" placeholder="AB12" maxlength="4" autocapitalize="characters" />
+        <label for="name-input">Prénom</label>
+        <input id="name-input" type="text" placeholder="Ton prénom" maxlength="30" />
+        <button id="join-btn">Rejoindre</button>
+        <p id="join-error" class="muted hidden"></p>
+      </div>
+    </div>
+
+    <div id="session-view" class="stack hidden" style="flex:1">
+      <div class="spread">
+        <span class="badge" id="name-badge"></span>
+        <span class="badge" id="code-badge"></span>
+      </div>
+      <div id="content" style="flex:1; display:flex; flex-direction:column;"></div>
+    </div>
+
+  </div>
+
+  <script type="module" src="assets/js/public.js"></script>
+</body>
+</html>

@@ -1,0 +1,496 @@
+import { ensureAuth } from "./firebase-init.js";
+import { PRESENTER_PIN } from "./firebase-config.js";
+import {
+  createSession,
+  endSession,
+  getActiveSessionCode,
+  listenSession,
+  updateSession,
+  listenParticipants,
+  excludeParticipant,
+  listenVotesForPitch,
+  getVotesForQuizRound,
+  generateSessionCode
+} from "./session-service.js";
+
+const QUIZ_IDS = ["quiz-1", "quiz-2", "quiz-3"];
+
+let currentCode = null;
+let currentSession = null;
+let participants = [];
+const configs = {};
+const voteData = {}; // quizId -> { key, round, pitchId, votes }
+const voteUnsub = {}; // quizId -> unsubscribe fn
+let unsubSession = null;
+let unsubParticipants = null;
+
+// ---------- PIN gate ----------
+function initPinGate() {
+  const gate = document.getElementById("pin-gate");
+  const app = document.getElementById("app");
+  if (sessionStorage.getItem("presenterPinOk") === "1") {
+    gate.classList.add("hidden");
+    app.classList.remove("hidden");
+    boot();
+    return;
+  }
+  document.getElementById("pin-submit").addEventListener("click", submit);
+  document.getElementById("pin-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submit();
+  });
+  function submit() {
+    const val = document.getElementById("pin-input").value;
+    if (val === PRESENTER_PIN) {
+      sessionStorage.setItem("presenterPinOk", "1");
+      gate.classList.add("hidden");
+      app.classList.remove("hidden");
+      boot();
+    } else {
+      document.getElementById("pin-error").classList.remove("hidden");
+    }
+  }
+}
+
+// ---------- Boot ----------
+async function boot() {
+  try {
+    await ensureAuth();
+  } catch (err) {
+    showFatalError(
+      "Impossible de se connecter à Firebase. Vérifie que assets/js/firebase-config.js contient bien la configuration de ton projet Firebase et que l'authentification anonyme est activée.",
+      err
+    );
+    return;
+  }
+
+  await Promise.all(
+    QUIZ_IDS.map(async (id) => {
+      const res = await fetch(`../config/${id}.json`);
+      configs[id] = await res.json();
+    })
+  );
+  initViews();
+  document.getElementById("create-session-btn").addEventListener("click", onCreateSession);
+  document.getElementById("end-session-btn").addEventListener("click", onEndSession);
+  document.getElementById("regen-session-btn").addEventListener("click", onRegenSession);
+
+  const activeCode = await getActiveSessionCode();
+  if (activeCode) attach(activeCode);
+  else renderAll();
+}
+
+function showFatalError(message, err) {
+  const app = document.getElementById("app");
+  app.classList.remove("hidden");
+  app.innerHTML = `<div class="landing"><div class="card stack" style="max-width:480px"><h2>⚠️ Erreur de configuration</h2><p>${message}</p>${err ? `<p class="muted">${escapeHtml(err.message || String(err))}</p>` : ""}</div></div>`;
+}
+
+// ---------- Views (accueil / session / quiz-1 / quiz-2 / quiz-3) ----------
+function showView(name) {
+  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+  document.getElementById(`view-${name}`).classList.add("active");
+}
+
+function initViews() {
+  document.getElementById("home-link").addEventListener("click", () => showView("home"));
+  document.getElementById("session-mgmt-btn").addEventListener("click", () => showView("session"));
+  document.querySelectorAll(".back-btn").forEach((btn) => {
+    btn.addEventListener("click", () => showView("home"));
+  });
+  document.querySelectorAll(".quiz-home-btn").forEach((btn) => {
+    btn.addEventListener("click", () => showView(btn.dataset.quiz));
+  });
+}
+
+// ---------- Session lifecycle ----------
+async function onCreateSession() {
+  const code = await createSession();
+  attach(code);
+}
+
+async function onEndSession() {
+  if (!currentCode) return;
+  if (!confirm("Terminer la session en cours ?")) return;
+  await endSession(currentCode);
+  detach();
+  renderAll();
+}
+
+async function onRegenSession() {
+  if (!currentCode) return;
+  if (!confirm("Terminer la session actuelle et en générer une nouvelle ?")) return;
+  const old = currentCode;
+  await endSession(old);
+  const code = await createSession();
+  attach(code);
+}
+
+function attach(code) {
+  detach();
+  currentCode = code;
+  renderQrCode(code);
+  unsubSession = listenSession(code, (session) => {
+    currentSession = session;
+    renderAll();
+  });
+  unsubParticipants = listenParticipants(code, (list) => {
+    participants = list;
+    renderParticipants();
+    if (currentSession && currentSession.activeQuizId) {
+      renderQuizPanel(currentSession.activeQuizId);
+    }
+  });
+}
+
+function detach() {
+  if (unsubSession) unsubSession();
+  if (unsubParticipants) unsubParticipants();
+  Object.values(voteUnsub).forEach((fn) => fn && fn());
+  Object.keys(voteUnsub).forEach((k) => delete voteUnsub[k]);
+  Object.keys(voteData).forEach((k) => delete voteData[k]);
+  currentCode = null;
+  currentSession = null;
+  participants = [];
+}
+
+function renderQrCode(code) {
+  const container = document.getElementById("qrcode-container");
+  container.innerHTML = "";
+  const publicUrl = new URL(`../index.html?code=${code}`, window.location.href).href;
+  // eslint-disable-next-line no-undef
+  new QRCode(container, { text: publicUrl, width: 180, height: 180 });
+  document.getElementById("session-code-text").textContent = code;
+}
+
+// ---------- Render: SESSION tab ----------
+function renderAll() {
+  const badge = document.getElementById("session-status-badge");
+  const noSessionView = document.getElementById("no-session-view");
+  const sessionView = document.getElementById("session-view");
+
+  if (!currentSession || currentSession.status !== "active") {
+    badge.textContent = "Aucune session";
+    noSessionView.classList.remove("hidden");
+    sessionView.classList.add("hidden");
+  } else {
+    badge.textContent = `Session ${currentSession.id} — active`;
+    noSessionView.classList.add("hidden");
+    sessionView.classList.remove("hidden");
+  }
+
+  renderParticipants();
+  renderHome();
+  QUIZ_IDS.forEach((quizId) => {
+    manageVoteListener(quizId);
+    renderQuizPanel(quizId);
+  });
+}
+
+function renderHome() {
+  QUIZ_IDS.forEach((quizId) => {
+    const statusEl = document.querySelector(`[data-status="${quizId}"]`);
+    if (!statusEl) return;
+    statusEl.textContent = quizStatusLabel(quizId);
+  });
+}
+
+function quizStatusLabel(quizId) {
+  if (!currentSession || currentSession.activeQuizId !== quizId) return "Non commencé";
+  switch (currentSession.phase) {
+    case "round1-voting":
+      return `En cours — manche 1 (${currentSession.round1PitchIndex + 1}/${configs[quizId].round1.pitches.length})`;
+    case "round1-final":
+      return "En cours — classement manche 1";
+    case "round2-voting":
+    case "round2-pitch-result":
+      return `En cours — manche 2 (${currentSession.round2PitchIndex + 1}/${currentSession.selectedPitchIds.length})`;
+    case "quiz-done":
+      return "Terminé";
+    default:
+      return "En cours";
+  }
+}
+
+function renderParticipants() {
+  const list = document.getElementById("participant-list");
+  const countBadge = document.getElementById("participant-count");
+  const active = participants.filter((p) => !p.excluded);
+  countBadge.textContent = String(active.length);
+  list.innerHTML = "";
+  participants.forEach((p) => {
+    const li = document.createElement("li");
+    li.textContent = p.name;
+    if (p.excluded) li.classList.add("excluded");
+    li.title = "Double-clic pour exclure";
+    li.addEventListener("dblclick", async () => {
+      if (p.excluded) return;
+      if (!confirm(`Exclure ${p.name} de la session ?`)) return;
+      await excludeParticipant(currentCode, p.id);
+    });
+    list.appendChild(li);
+  });
+}
+
+// ---------- Vote listener management ----------
+function computeListenerSpec(quizId, session) {
+  if (!session || session.activeQuizId !== quizId) return null;
+  const config = configs[quizId];
+  if (session.phase === "round1-voting") {
+    const pitch = config.round1.pitches[session.round1PitchIndex];
+    if (!pitch) return null;
+    return { key: `${session.activeRunId}-r1-${session.round1PitchIndex}`, round: 1, pitchId: pitch.id };
+  }
+  if (session.phase === "round2-voting" || session.phase === "round2-pitch-result") {
+    const pitchId = session.selectedPitchIds[session.round2PitchIndex];
+    if (!pitchId) return null;
+    return { key: `${session.activeRunId}-r2-${session.round2PitchIndex}`, round: 2, pitchId };
+  }
+  return null;
+}
+
+function manageVoteListener(quizId) {
+  const spec = computeListenerSpec(quizId, currentSession);
+  const existingKey = voteData[quizId] ? voteData[quizId].key : null;
+  const desiredKey = spec ? spec.key : null;
+  if (existingKey === desiredKey) return;
+
+  if (voteUnsub[quizId]) {
+    voteUnsub[quizId]();
+    delete voteUnsub[quizId];
+  }
+  if (!spec) {
+    delete voteData[quizId];
+    return;
+  }
+  const runId = currentSession.activeRunId;
+  voteData[quizId] = { key: spec.key, round: spec.round, pitchId: spec.pitchId, votes: [] };
+  voteUnsub[quizId] = listenVotesForPitch(currentCode, quizId, runId, spec.round, spec.pitchId, (votes) => {
+    voteData[quizId] = { key: spec.key, round: spec.round, pitchId: spec.pitchId, votes };
+    renderQuizPanel(quizId);
+  });
+}
+
+// ---------- Render: QUIZ tabs ----------
+function renderQuizPanel(quizId) {
+  const el = document.getElementById(`tab-${quizId}`);
+  const config = configs[quizId];
+  if (!el || !config) return;
+
+  if (!currentSession || currentSession.status !== "active") {
+    el.innerHTML = `<div class="card center"><p class="muted">Crée une session dans l'onglet SESSION pour démarrer ${config.name}.</p></div>`;
+    return;
+  }
+
+  if (currentSession.activeQuizId !== quizId) {
+    const anotherActive = currentSession.activeQuizId && currentSession.activeQuizId !== quizId;
+    el.innerHTML = `
+      <div class="card center stack" style="max-width:480px;margin:0 auto">
+        <h2>${config.name}</h2>
+        <p class="muted">${config.round1.pitches.length} pitchs — les ${config.round1.selectCount} meilleurs passent en manche 2</p>
+        ${anotherActive ? `<p class="muted">Un autre quiz (${currentSession.activeQuizId}) est en cours. Termine-le avant de démarrer celui-ci.</p>` : ""}
+        <button id="start-${quizId}" ${anotherActive ? "disabled" : ""}>Démarrer ce quiz</button>
+      </div>`;
+    document.getElementById(`start-${quizId}`)?.addEventListener("click", () => startQuiz(quizId));
+    return;
+  }
+
+  const session = currentSession;
+  const votes = voteData[quizId] ? voteData[quizId].votes : [];
+
+  if (session.phase === "round1-voting") {
+    const pitch = config.round1.pitches[session.round1PitchIndex];
+    const isLast = session.round1PitchIndex === config.round1.pitches.length - 1;
+    const total = votes.length;
+
+    el.innerHTML = `
+      <div class="card stack" style="max-width:640px;margin:0 auto">
+        <span class="badge">Manche 1 — Pitch ${session.round1PitchIndex + 1}/${config.round1.pitches.length}</span>
+        <h2 class="pitch-title">${escapeHtml(pitch.title)}</h2>
+        <p class="pitch-text">${escapeHtml(pitch.pitch)}</p>
+        <p class="muted">${total} vote${total > 1 ? "s" : ""} reçu${total > 1 ? "s" : ""} — ${participants.filter((p) => !p.excluded).length} inscrits</p>
+        <div class="row" style="justify-content:center">
+          <button id="next-r1">${isLast ? "Voir le classement" : "Pitch suivant"}</button>
+        </div>
+      </div>`;
+
+    document.getElementById("next-r1").addEventListener("click", () => nextRound1Pitch(quizId));
+    return;
+  }
+
+  if (session.phase === "round1-final") {
+    const ranking = session.round1Results || [];
+    el.innerHTML = `
+      <div class="card stack" style="max-width:640px;margin:0 auto">
+        <span class="badge">Manche 1 — Classement final</span>
+        <h2>Top ${config.round1.selectCount} pièces retenues</h2>
+        <ul class="ranking-list">
+          ${ranking
+            .map(
+              (r, i) => `<li class="${session.selectedPitchIds.includes(r.pitchId) ? "selected" : ""}"><span>#${i + 1} ${escapeHtml(r.title)}</span><span>${r.points} pts</span></li>`
+            )
+            .join("")}
+        </ul>
+        <div class="row" style="justify-content:center">
+          <button id="start-r2">Démarrer la manche 2</button>
+        </div>
+      </div>`;
+    document.getElementById("start-r2").addEventListener("click", () => startRound2(quizId));
+    return;
+  }
+
+  if (session.phase === "round2-voting" || session.phase === "round2-pitch-result") {
+    const pitchId = session.selectedPitchIds[session.round2PitchIndex];
+    const pitch = config.round1.pitches.find((p) => p.id === pitchId);
+    const options = pitch.presentationOptions;
+    const isLast = session.round2PitchIndex === session.selectedPitchIds.length - 1;
+    const counts = options.map((_, i) => votes.filter((v) => v.optionIndex === i).length);
+    const total = votes.length;
+
+    el.innerHTML = `
+      <div class="card stack" style="max-width:640px;margin:0 auto">
+        <span class="badge">Manche 2 — Pièce ${session.round2PitchIndex + 1}/${session.selectedPitchIds.length}</span>
+        <h2 class="pitch-title">${escapeHtml(pitch.title)}</h2>
+        <p class="pitch-text">${escapeHtml(pitch.pitch)}</p>
+        <p class="muted">${total} vote${total > 1 ? "s" : ""} reçu${total > 1 ? "s" : ""}</p>
+        <div class="results-bars">
+          ${options
+            .map(
+              (opt, i) => `
+            <div class="result-row">
+              <div class="result-label"><span>${escapeHtml(opt)}</span><span>${counts[i]}</span></div>
+              <div class="progress-bar"><span style="width:${total ? (counts[i] / total) * 100 : 0}%"></span></div>
+            </div>`
+            )
+            .join("")}
+        </div>
+        <div class="row" style="justify-content:center">
+          ${
+            session.phase === "round2-voting"
+              ? `<button id="lock-r2">Verrouiller et voir le résultat</button>`
+              : `<button id="next-r2">${isLast ? "Terminer le quiz" : "Pièce suivante"}</button>`
+          }
+        </div>
+      </div>`;
+
+    if (session.phase === "round2-voting") {
+      document.getElementById("lock-r2").addEventListener("click", () => lockRound2Pitch());
+    } else {
+      document.getElementById("next-r2").addEventListener("click", () => nextRound2Pitch(quizId));
+    }
+    return;
+  }
+
+  if (session.phase === "quiz-done") {
+    const results = session.round2Results || [];
+    el.innerHTML = `
+      <div class="card stack" style="max-width:640px;margin:0 auto">
+        <span class="badge">Quiz terminé</span>
+        <h2>Récapitulatif</h2>
+        <ul class="ranking-list">
+          ${results
+            .map(
+              (r) => `<li><span>${escapeHtml(r.title)}</span><span>${escapeHtml(r.options[r.winningOptionIndex])}</span></li>`
+            )
+            .join("")}
+        </ul>
+        <div class="row" style="justify-content:center">
+          <button class="secondary" id="reset-quiz">Réinitialiser ce quiz</button>
+        </div>
+      </div>`;
+    document.getElementById("reset-quiz").addEventListener("click", () => resetQuiz());
+    return;
+  }
+
+  el.innerHTML = `<div class="card"><p class="muted">État inconnu.</p></div>`;
+}
+
+// ---------- State transitions ----------
+async function startQuiz(quizId) {
+  await updateSession(currentCode, {
+    activeQuizId: quizId,
+    activeRunId: generateSessionCode(8),
+    phase: "round1-voting",
+    round1PitchIndex: 0,
+    round1Results: null,
+    selectedPitchIds: [],
+    round2PitchIndex: 0,
+    round2Results: null
+  });
+}
+
+async function nextRound1Pitch(quizId) {
+  const config = configs[quizId];
+  const nextIndex = currentSession.round1PitchIndex + 1;
+  if (nextIndex < config.round1.pitches.length) {
+    await updateSession(currentCode, { phase: "round1-voting", round1PitchIndex: nextIndex });
+    return;
+  }
+  const votes = await getVotesForQuizRound(currentCode, quizId, currentSession.activeRunId, 1);
+  const totals = {};
+  config.round1.pitches.forEach((p) => (totals[p.id] = 0));
+  votes.forEach((v) => {
+    totals[v.pitchId] = (totals[v.pitchId] || 0) + (v.points || 0);
+  });
+  const ranking = config.round1.pitches
+    .map((p) => ({ pitchId: p.id, title: p.title, points: totals[p.id] || 0 }))
+    .sort((a, b) => b.points - a.points);
+  const selectedPitchIds = ranking.slice(0, config.round1.selectCount).map((r) => r.pitchId);
+  await updateSession(currentCode, {
+    phase: "round1-final",
+    round1Results: ranking,
+    selectedPitchIds
+  });
+}
+
+async function startRound2() {
+  await updateSession(currentCode, { phase: "round2-voting", round2PitchIndex: 0 });
+}
+
+async function lockRound2Pitch() {
+  await updateSession(currentCode, { phase: "round2-pitch-result" });
+}
+
+async function nextRound2Pitch(quizId) {
+  const config = configs[quizId];
+  const nextIndex = currentSession.round2PitchIndex + 1;
+  if (nextIndex < currentSession.selectedPitchIds.length) {
+    await updateSession(currentCode, { phase: "round2-voting", round2PitchIndex: nextIndex });
+    return;
+  }
+  const votes = await getVotesForQuizRound(currentCode, quizId, currentSession.activeRunId, 2);
+  const results = currentSession.selectedPitchIds.map((pitchId) => {
+    const pitch = config.round1.pitches.find((p) => p.id === pitchId);
+    const options = pitch.presentationOptions;
+    const counts = options.map(
+      (_, i) => votes.filter((v) => v.pitchId === pitchId && v.optionIndex === i).length
+    );
+    let winningOptionIndex = 0;
+    counts.forEach((c, i) => {
+      if (c > counts[winningOptionIndex]) winningOptionIndex = i;
+    });
+    return { pitchId, title: pitch.title, options, counts, winningOptionIndex };
+  });
+  await updateSession(currentCode, { phase: "quiz-done", round2Results: results });
+}
+
+async function resetQuiz() {
+  await updateSession(currentCode, {
+    activeQuizId: null,
+    activeRunId: null,
+    phase: "waiting",
+    round1PitchIndex: 0,
+    round1Results: null,
+    selectedPitchIds: [],
+    round2PitchIndex: 0,
+    round2Results: null
+  });
+}
+
+// ---------- Utils ----------
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str ?? "";
+  return div.innerHTML;
+}
+
+initPinGate();

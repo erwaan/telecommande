@@ -6,7 +6,7 @@
       { "label": "J'adore", "points": 3 },
       { "label": "J'aime bien", "points": 2 },
       { "label": "Sans plus", "points": 1 },
-      { "label": "Ça ne m'intéresse pas", "points": 0 }
+      { "label": "Ça ne m'intéresse pas trop", "points": 0 }
     ],
     "selectCount": 3,
     "pitches": [

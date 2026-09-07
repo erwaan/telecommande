@@ -246,3 +246,23 @@ input::placeholder { color: var(--color-text-dim); }
   text-align: center;
 }
 .waiting-screen .emoji { font-size: 3rem; }
+
+/* ---------- Modal ---------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 1000;
+}
+.modal-card {
+  max-width: 420px;
+  width: 100%;
+}
+.modal-card p {
+  margin: 0;
+  font-size: 1.05rem;
+}

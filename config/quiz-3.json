@@ -1,44 +1,56 @@
 {
   "id": "quiz-3",
-  "name": "Quiz 3",
+  "name": "Troisième partie de saison",
   "round1": {
     "voteOptions": [
-      { "label": "J'adore", "points": 3 },
-      { "label": "J'aime bien", "points": 2 },
-      { "label": "Sans plus", "points": 1 },
-      { "label": "Ça ne m'intéresse pas trop", "points": 0 }
+      { "label": "Je fonce !", "points": 3 },
+      { "label": "Bonne idée", "points": 2 },
+      { "label": "Pourquoi pas", "points": 1 },
+      { "label": "Ça ne me tente pas", "points": 0 }
     ],
     "selectCount": 3,
     "pitches": [
       {
         "id": "p1",
-        "title": "Titre de la pièce 1",
-        "pitch": "Résumé / pitch de la pièce 1 à remplacer.",
-        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+        "title": "Épopées",
+        "pitch": "",
+        "presentationOptions": ["Extrait joué en live", "Le mot du directeur"]
       },
       {
         "id": "p2",
-        "title": "Titre de la pièce 2",
-        "pitch": "Résumé / pitch de la pièce 2 à remplacer.",
+        "title": "Le livre de K",
+        "pitch": "",
         "presentationOptions": ["Extrait joué en live", "Le mot du directeur"]
       },
       {
         "id": "p3",
-        "title": "Titre de la pièce 3",
-        "pitch": "Résumé / pitch de la pièce 3 à remplacer.",
+        "title": "Code : oxygène",
+        "pitch": "",
         "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
       },
       {
         "id": "p4",
-        "title": "Titre de la pièce 4",
-        "pitch": "Résumé / pitch de la pièce 4 à remplacer.",
-        "presentationOptions": ["Teaser vidéo", "Le mot du directeur"]
+        "title": "Voûte",
+        "pitch": "",
+        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
       },
       {
         "id": "p5",
-        "title": "Titre de la pièce 5",
-        "pitch": "Résumé / pitch de la pièce 5 à remplacer.",
+        "title": "La ferme des animaux",
+        "pitch": "",
         "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+      },
+      {
+        "id": "p6",
+        "title": "Liberté mon cul",
+        "pitch": "",
+        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+      },
+      {
+        "id": "p7",
+        "title": "Flux",
+        "pitch": "",
+        "presentationOptions": ["Extrait joué en live", "Le mot du directeur"]
       }
     ]
   }

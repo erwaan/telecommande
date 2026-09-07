@@ -1,44 +1,74 @@
 {
   "id": "quiz-1",
-  "name": "Quiz 1",
+  "name": "Première partie de saison",
   "round1": {
     "voteOptions": [
-      { "label": "J'adore", "points": 3 },
-      { "label": "J'aime bien", "points": 2 },
-      { "label": "Sans plus", "points": 1 },
-      { "label": "Ça ne m'intéresse pas", "points": 0 }
+      { "label": "Je fonce !", "points": 3 },
+      { "label": "Bonne idée", "points": 2 },
+      { "label": "Pourquoi pas", "points": 1 },
+      { "label": "Ça ne me tente pas", "points": 0 }
     ],
-    "selectCount": 3,
+    "selectCount": 5,
     "pitches": [
       {
         "id": "p1",
-        "title": "Titre de la pièce 1",
-        "pitch": "Résumé / pitch de la pièce 1 à remplacer.",
-        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+        "title": "Au bout de ma langue",
+        "pitch": "",
+        "presentationOptions": ["Extrait joué en live", "Le mot du directeur"]
       },
       {
         "id": "p2",
-        "title": "Titre de la pièce 2",
-        "pitch": "Résumé / pitch de la pièce 2 à remplacer.",
+        "title": "3 saisons et 1 corps",
+        "pitch": "",
         "presentationOptions": ["Extrait joué en live", "Le mot du directeur"]
       },
       {
         "id": "p3",
-        "title": "Titre de la pièce 3",
-        "pitch": "Résumé / pitch de la pièce 3 à remplacer.",
+        "title": "Mentir lo minimo",
+        "pitch": "",
         "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
       },
       {
         "id": "p4",
-        "title": "Titre de la pièce 4",
-        "pitch": "Résumé / pitch de la pièce 4 à remplacer.",
-        "presentationOptions": ["Teaser vidéo", "Le mot du directeur"]
+        "title": "Pedro / Céline",
+        "pitch": "",
+        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
       },
       {
         "id": "p5",
-        "title": "Titre de la pièce 5",
-        "pitch": "Résumé / pitch de la pièce 5 à remplacer.",
+        "title": "Fusées",
+        "pitch": "",
         "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+      },
+      {
+        "id": "p6",
+        "title": "Pulse(s) + Amazigh in situ",
+        "pitch": "",
+        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+      },
+      {
+        "id": "p7",
+        "title": "Ghetto",
+        "pitch": "",
+        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+      },
+      {
+        "id": "p8",
+        "title": "Article 353 du code pénal",
+        "pitch": "",
+        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+      },
+      {
+        "id": "p9",
+        "title": "Voyage au bout de l'ennui",
+        "pitch": "",
+        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+      },
+      {
+        "id": "p10",
+        "title": "Au secours la réalité",
+        "pitch": "",
+        "presentationOptions": ["Extrait joué en live", "Le mot du directeur"]
       }
     ]
   }

@@ -16,6 +16,7 @@
       <button id="pin-submit">Entrer</button>
       <p id="pin-error" class="muted hidden">Code incorrect.</p>
     </div>
+    
   </div>
 
   <div id="app" class="hidden" style="display:flex; flex-direction:column; min-height:100vh;">
@@ -90,6 +91,16 @@
       </section>
 
     </main>
+  </div>
+
+  <div id="confirm-modal" class="modal-overlay hidden">
+    <div class="modal-card card stack">
+      <p id="confirm-modal-message"></p>
+      <div class="row" style="justify-content:flex-end">
+        <button class="secondary" id="confirm-modal-cancel">Annuler</button>
+        <button class="danger" id="confirm-modal-ok">Confirmer</button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="../assets/js/presenter.js"></script>

@@ -24,6 +24,35 @@ const voteUnsub = {}; // quizId -> unsubscribe fn
 let unsubSession = null;
 let unsubParticipants = null;
 
+// ---------- Confirm modal ----------
+function confirmModal(message) {
+  const overlay = document.getElementById("confirm-modal");
+  const okBtn = document.getElementById("confirm-modal-ok");
+  const cancelBtn = document.getElementById("confirm-modal-cancel");
+  document.getElementById("confirm-modal-message").textContent = message;
+  overlay.classList.remove("hidden");
+
+  return new Promise((resolve) => {
+    function cleanup(result) {
+      overlay.classList.add("hidden");
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+      overlay.removeEventListener("click", onOverlayClick);
+      document.removeEventListener("keydown", onKeydown);
+      resolve(result);
+    }
+    function onOk() { cleanup(true); }
+    function onCancel() { cleanup(false); }
+    function onOverlayClick(e) { if (e.target === overlay) cleanup(false); }
+    function onKeydown(e) { if (e.key === "Escape") cleanup(false); }
+
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+    overlay.addEventListener("click", onOverlayClick);
+    document.addEventListener("keydown", onKeydown);
+  });
+}
+
 // ---------- PIN gate ----------
 function initPinGate() {
   const gate = document.getElementById("pin-gate");
@@ -110,7 +139,7 @@ async function onCreateSession() {
 
 async function onEndSession() {
   if (!currentCode) return;
-  if (!confirm("Terminer la session en cours ?")) return;
+  if (!(await confirmModal("Terminer la session en cours ?"))) return;
   await endSession(currentCode);
   detach();
   renderAll();
@@ -118,7 +147,7 @@ async function onEndSession() {
 
 async function onRegenSession() {
   if (!currentCode) return;
-  if (!confirm("Terminer la session actuelle et en générer une nouvelle ?")) return;
+  if (!(await confirmModal("Terminer la session actuelle et en générer une nouvelle ?"))) return;
   const old = currentCode;
   await endSession(old);
   const code = await createSession();
@@ -224,7 +253,7 @@ function renderParticipants() {
     li.title = "Double-clic pour exclure";
     li.addEventListener("dblclick", async () => {
       if (p.excluded) return;
-      if (!confirm(`Exclure ${p.name} de la session ?`)) return;
+      if (!(await confirmModal(`Exclure ${p.name} de la session ?`))) return;
       await excludeParticipant(currentCode, p.id);
     });
     list.appendChild(li);

@@ -1,7 +1,7 @@
 import { ensureAuth } from "./firebase-init.js";
 import { joinSession, listenSession, listenParticipant, castVote } from "./session-service.js";
+import { loadQuizConfigs } from "./quiz-config.js";
 
-const QUIZ_IDS = ["quiz-1", "quiz-2", "quiz-3"];
 const STORAGE_KEY = "quizJoin";
 
 const configs = {};
@@ -22,12 +22,8 @@ async function boot() {
   }
   uid = user.uid;
 
-  await Promise.all(
-    QUIZ_IDS.map(async (id) => {
-      const res = await fetch(`config/${id}.json`);
-      configs[id] = await res.json();
-    })
-  );
+  const { configs: loadedConfigs } = await loadQuizConfigs("config/");
+  Object.assign(configs, loadedConfigs);
 
   const params = new URLSearchParams(window.location.search);
   const qCode = params.get("code");

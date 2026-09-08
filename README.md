@@ -17,7 +17,7 @@ Firestore (plan gratuit Spark) n'a **pas** de limite de connexions simultanées 
 
 ## 2. Configurer les quiz
 
-Les 3 quiz sont définis dans `config/quiz-1.json`, `config/quiz-2.json`, `config/quiz-3.json`. Structure :
+Les quiz sont définis dans `config/quiz-1.json`, `config/quiz-2.json`, `config/quiz-3.json`, etc. Ils sont détectés automatiquement : ajoute simplement un nouveau fichier `config/quiz-N.json` en suivant la numérotation (sans trou) pour qu'un quiz supplémentaire apparaisse, et son nom affiché est celui du champ `name`. Structure :
 
 ```jsonc
 {

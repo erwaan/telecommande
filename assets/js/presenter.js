@@ -12,8 +12,9 @@ import {
   getVotesForQuizRound,
   generateSessionCode
 } from "./session-service.js";
+import { loadQuizConfigs } from "./quiz-config.js";
 
-const QUIZ_IDS = ["quiz-1", "quiz-2", "quiz-3"];
+let QUIZ_IDS = [];
 
 let currentCode = null;
 let currentSession = null;
@@ -92,12 +93,11 @@ async function boot() {
     return;
   }
 
-  await Promise.all(
-    QUIZ_IDS.map(async (id) => {
-      const res = await fetch(`../config/${id}.json`);
-      configs[id] = await res.json();
-    })
-  );
+  const { ids, configs: loadedConfigs } = await loadQuizConfigs("../config/");
+  QUIZ_IDS = ids;
+  Object.assign(configs, loadedConfigs);
+
+  buildQuizDom();
   initViews();
   document.getElementById("create-session-btn").addEventListener("click", onCreateSession);
   document.getElementById("end-session-btn").addEventListener("click", onEndSession);
@@ -114,18 +114,36 @@ function showFatalError(message, err) {
   app.innerHTML = `<div class="landing"><div class="card stack" style="max-width:480px"><h2>⚠️ Erreur de configuration</h2><p>${message}</p>${err ? `<p class="muted">${escapeHtml(err.message || String(err))}</p>` : ""}</div></div>`;
 }
 
-// ---------- Views (accueil / session / quiz-1 / quiz-2 / quiz-3) ----------
+// ---------- Views (accueil / session / quiz dynamiques) ----------
+function buildQuizDom() {
+  const grid = document.getElementById("home-quiz-grid");
+  const container = document.getElementById("quiz-views-container");
+  grid.innerHTML = QUIZ_IDS.map(
+    (quizId) => `
+      <button class="quiz-home-btn" data-quiz="${quizId}">
+        <span class="quiz-home-title">${escapeHtml(configs[quizId].name)}</span>
+        <span class="quiz-home-status muted" data-status="${quizId}">Non commencé</span>
+      </button>`
+  ).join("");
+  container.innerHTML = QUIZ_IDS.map(
+    (quizId) => `
+      <section id="view-${quizId}" class="view" data-quiz-id="${quizId}">
+        <div id="tab-${quizId}"></div>
+      </section>`
+  ).join("");
+}
+
 function showView(name) {
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   document.getElementById(`view-${name}`).classList.add("active");
+  document.getElementById("app").classList.toggle("stage-mode", QUIZ_IDS.includes(name));
+  document.getElementById("home-nav-btn").classList.toggle("hidden", name === "home");
 }
 
 function initViews() {
   document.getElementById("home-link").addEventListener("click", () => showView("home"));
+  document.getElementById("home-nav-btn").addEventListener("click", () => showView("home"));
   document.getElementById("session-mgmt-btn").addEventListener("click", () => showView("session"));
-  document.querySelectorAll(".back-btn").forEach((btn) => {
-    btn.addEventListener("click", () => showView("home"));
-  });
   document.querySelectorAll(".quiz-home-btn").forEach((btn) => {
     btn.addEventListener("click", () => showView(btn.dataset.quiz));
   });
@@ -332,7 +350,7 @@ function renderQuizPanel(quizId) {
     const total = votes.length;
 
     el.innerHTML = `
-      <div class="card stack" style="max-width:640px;margin:0 auto">
+      <div class="card stack" style="max-width:1100px">
         <span class="badge">Manche 1 — Pitch ${session.round1PitchIndex + 1}/${config.round1.pitches.length}</span>
         <h2 class="pitch-title">${escapeHtml(pitch.title)}</h2>
         <p class="pitch-text">${escapeHtml(pitch.pitch)}</p>
@@ -347,15 +365,15 @@ function renderQuizPanel(quizId) {
   }
 
   if (session.phase === "round1-final") {
-    const ranking = session.round1Results || [];
+    const ranking = (session.round1Results || []).filter((r) => session.selectedPitchIds.includes(r.pitchId));
     el.innerHTML = `
-      <div class="card stack" style="max-width:640px;margin:0 auto">
+      <div class="card stack" style="max-width:640px">
         <span class="badge">Manche 1 — Classement final</span>
         <h2>Top ${config.round1.selectCount} pièces retenues</h2>
         <ul class="ranking-list">
           ${ranking
             .map(
-              (r, i) => `<li class="${session.selectedPitchIds.includes(r.pitchId) ? "selected" : ""}"><span>#${i + 1} ${escapeHtml(r.title)}</span><span>${r.points} pts</span></li>`
+              (r, i) => `<li class="selected"><span>#${i + 1} ${escapeHtml(r.title)}</span><span>${r.points} pts</span></li>`
             )
             .join("")}
         </ul>
@@ -376,7 +394,7 @@ function renderQuizPanel(quizId) {
     const total = votes.length;
 
     el.innerHTML = `
-      <div class="card stack" style="max-width:640px;margin:0 auto">
+      <div class="card stack" style="max-width:1100px">
         <span class="badge">Manche 2 — Pièce ${session.round2PitchIndex + 1}/${session.selectedPitchIds.length}</span>
         <h2 class="pitch-title">${escapeHtml(pitch.title)}</h2>
         <p class="pitch-text">${escapeHtml(pitch.pitch)}</p>

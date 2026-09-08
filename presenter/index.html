@@ -25,6 +25,7 @@
     <header class="presenter-header spread">
       <h1 style="margin:0; cursor:pointer" id="home-link">Quiz Théâtre — Présentateur</h1>
       <div class="row">
+        <button class="secondary hidden" id="home-nav-btn">← Accueil</button>
         <span id="session-status-badge" class="badge">Aucune session</span>
         <button class="secondary" id="session-mgmt-btn">⚙ Session</button>
       </div>
@@ -34,25 +35,10 @@
     <main style="flex:1; display:flex; flex-direction:column;">
 
       <section id="view-home" class="view active" style="flex:1; display:flex; align-items:center; justify-content:center; padding:2rem;">
-        <div class="home-quiz-grid">
-          <button class="quiz-home-btn" data-quiz="quiz-1">
-            <span class="quiz-home-title">Quiz 1</span>
-            <span class="quiz-home-status muted" data-status="quiz-1">Non commencé</span>
-          </button>
-          <button class="quiz-home-btn" data-quiz="quiz-2">
-            <span class="quiz-home-title">Quiz 2</span>
-            <span class="quiz-home-status muted" data-status="quiz-2">Non commencé</span>
-          </button>
-          <button class="quiz-home-btn" data-quiz="quiz-3">
-            <span class="quiz-home-title">Quiz 3</span>
-            <span class="quiz-home-status muted" data-status="quiz-3">Non commencé</span>
-          </button>
-        </div>
+        <div class="home-quiz-grid" id="home-quiz-grid"></div>
       </section>
 
       <section id="view-session" class="view" style="padding:1.5rem;">
-        <button class="secondary back-btn" data-back>← Accueil</button>
-
         <div id="no-session-view" class="card center stack hidden" style="max-width:480px;margin:1.5rem auto">
           <p>Aucune session active.</p>
           <button id="create-session-btn">Créer une session</button>
@@ -80,18 +66,7 @@
         </div>
       </section>
 
-      <section id="view-quiz-1" class="view" data-quiz-id="quiz-1" style="padding:1.5rem;">
-        <button class="secondary back-btn" data-back>← Accueil</button>
-        <div id="tab-quiz-1" style="margin-top:1.5rem"></div>
-      </section>
-      <section id="view-quiz-2" class="view" data-quiz-id="quiz-2" style="padding:1.5rem;">
-        <button class="secondary back-btn" data-back>← Accueil</button>
-        <div id="tab-quiz-2" style="margin-top:1.5rem"></div>
-      </section>
-      <section id="view-quiz-3" class="view" data-quiz-id="quiz-3" style="padding:1.5rem;">
-        <button class="secondary back-btn" data-back>← Accueil</button>
-        <div id="tab-quiz-3" style="margin-top:1.5rem"></div>
-      </section>
+      <div id="quiz-views-container"></div>
 
     </main>
   </div>

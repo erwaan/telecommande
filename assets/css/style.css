@@ -29,6 +29,7 @@
   /* Palette — extraite des documents de la charte graphique */
   --color-magenta: #e8298f;
   --color-magenta-dim: #c11b74;
+  --color-pink-pale: #f46dbb;
   --color-yellow: #f5d90a;
   --color-purple: #5a1fe0;
   --color-purple-dim: #4517b3;
@@ -253,7 +254,50 @@ label {
 .view.active { display: block; }
 #view-home.active { display: flex; }
 
-.back-btn { margin-bottom: 0.5rem; }
+/* Le wrapper des sections quiz ne doit pas exister dans la mise en page :
+   ses sections doivent se comporter comme des enfants directs de <main>. */
+#quiz-views-container { display: contents; }
+
+/* ---------- Écran de présentation (quiz en cours) : plein écran, sans scroll ---------- */
+#app.stage-mode { height: 100vh; overflow: hidden; }
+#app.stage-mode main { min-height: 0; overflow: hidden; }
+
+.view[data-quiz-id] { padding: 1.5rem 2rem; }
+.view[data-quiz-id].active {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.view[data-quiz-id] > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.view[data-quiz-id] .card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  margin: 0 auto;
+  min-height: 0;
+}
+.view[data-quiz-id] .pitch-title {
+  font-size: clamp(2.5rem, 2vw + 3rem, 5.5rem);
+  line-height: 1.1;
+}
+.view[data-quiz-id] .pitch-text {
+  font-size: clamp(1.1rem, 1vw + 0.9rem, 1.6rem);
+}
+.view[data-quiz-id] .ranking-list,
+.view[data-quiz-id] .results-bars {
+  width: 100%;
+  max-width: 700px;
+}
 
 .home-quiz-grid {
   display: flex;
@@ -401,8 +445,9 @@ label {
   text-align: left;
 }
 .vote-options button.selected {
-  background: var(--color-green);
-  outline: 3px solid var(--color-green-dim);
+  background: var(--color-pink-pale);
+  color: var(--color-ink);
+  outline: 3px solid var(--color-magenta);
   outline-offset: 2px;
 }
 

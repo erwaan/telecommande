@@ -220,7 +220,7 @@ function renderAll() {
     noSessionView.classList.remove("hidden");
     sessionView.classList.add("hidden");
   } else {
-    badge.textContent = `Session ${currentSession.id} — active`;
+    badge.textContent = `Code de session : ${currentSession.id}`;
     noSessionView.classList.add("hidden");
     sessionView.classList.remove("hidden");
   }
@@ -234,7 +234,10 @@ function renderAll() {
 }
 
 function renderHome() {
+  const activeQuizId = currentSession && currentSession.status === "active" ? currentSession.activeQuizId : null;
   QUIZ_IDS.forEach((quizId) => {
+    const btn = document.querySelector(`.quiz-home-btn[data-quiz="${quizId}"]`);
+    if (btn) btn.classList.toggle("hidden", !!activeQuizId && activeQuizId !== quizId);
     const statusEl = document.querySelector(`[data-status="${quizId}"]`);
     if (!statusEl) return;
     statusEl.textContent = quizStatusLabel(quizId);

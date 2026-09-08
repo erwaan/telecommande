@@ -230,9 +230,24 @@ label {
 
 /* ---------- Presenter ---------- */
 .presenter-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1rem;
   padding: 1.1rem 1.5rem;
   background: var(--color-ink);
   color: white;
+}
+.presenter-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.presenter-header .header-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
 }
 .presenter-header h1 {
   color: white;
@@ -241,7 +256,7 @@ label {
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
-.presenter-header .badge { background: var(--color-yellow); color: var(--color-ink); }
+.presenter-header .badge { background: var(--color-yellow); color: var(--color-ink); justify-self: center; }
 .presenter-header button.secondary {
   background: transparent;
   color: white;

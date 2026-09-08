@@ -141,7 +141,6 @@ function showView(name) {
 }
 
 function initViews() {
-  document.getElementById("home-link").addEventListener("click", () => showView("home"));
   document.getElementById("home-nav-btn").addEventListener("click", () => showView("home"));
   document.getElementById("session-mgmt-btn").addEventListener("click", () => showView("session"));
   document.querySelectorAll(".quiz-home-btn").forEach((btn) => {

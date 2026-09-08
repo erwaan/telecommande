@@ -30,7 +30,7 @@
   --color-magenta: #e8298f;
   --color-magenta-dim: #c11b74;
   --color-pink-pale: #f46dbb;
-  --color-yellow: #f5d90a;
+  --color-yellow: #ffee00;
   --color-purple: #5a1fe0;
   --color-purple-dim: #4517b3;
   --color-orange: #ef5a28;
@@ -249,14 +249,30 @@ label {
   justify-content: flex-end;
   gap: 1rem;
 }
-.presenter-header h1 {
-  color: white;
+.presenter-header .badge { background: var(--color-yellow); color: var(--color-ink); justify-self: center; font-size: 1rem; padding: 0.4rem 1rem; }
+
+.home-title {
   font-family: var(--font-display);
-  font-size: 1.6rem;
+  font-size: clamp(2.8rem, 4vw + 1.5rem, 4.5rem);
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  color: var(--color-ink);
+  text-align: center;
+  margin: 0;
+  padding-bottom: 0.9rem;
+  position: relative;
 }
-.presenter-header .badge { background: var(--color-yellow); color: var(--color-ink); justify-self: center; }
+.home-title::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 150px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-magenta);
+}
 .presenter-header button.secondary {
   background: transparent;
   color: white;
@@ -267,7 +283,7 @@ label {
 
 .view { display: none; }
 .view.active { display: block; }
-#view-home.active { display: flex; }
+#view-home.active { display: flex; flex: 1; }
 
 /* Le wrapper des sections quiz ne doit pas exister dans la mise en page :
    ses sections doivent se comporter comme des enfants directs de <main>. */

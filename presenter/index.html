@@ -25,7 +25,6 @@
     <header class="presenter-header">
       <div class="header-left">
         <button class="secondary hidden" id="home-nav-btn">← Accueil</button>
-        <h1 style="margin:0; cursor:pointer" id="home-link">Quiz Théâtre — Présentateur</h1>
       </div>
       <span id="session-status-badge" class="badge">Aucune session</span>
       <div class="header-right">
@@ -33,10 +32,12 @@
       </div>
     </header>
     <div class="scallop yellow"></div>
+    <div class="scallop pink"></div>
 
     <main style="flex:1; display:flex; flex-direction:column;">
 
-      <section id="view-home" class="view active" style="flex:1; display:flex; align-items:center; justify-content:center; padding:2rem;">
+      <section id="view-home" class="view active" style="flex-direction:column; align-items:center; justify-content:center; gap:3.5rem; padding:2rem;">
+        <h1 class="home-title">Présentation de la saison 2026/2027</h1>
         <div class="home-quiz-grid" id="home-quiz-grid"></div>
       </section>
 

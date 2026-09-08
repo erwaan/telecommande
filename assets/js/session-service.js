@@ -37,13 +37,7 @@ export async function createSession() {
     status: "active",
     createdAt: serverTimestamp(),
     activeQuizId: null,
-    activeRunId: null,
-    phase: "waiting",
-    round1PitchIndex: 0,
-    round1Results: null,
-    selectedPitchIds: [],
-    round2PitchIndex: 0,
-    round2Results: null
+    quizzes: {}
   });
   await setDoc(META_DOC, { code });
   return code;

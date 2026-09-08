@@ -24,6 +24,7 @@ const voteData = {}; // quizId -> { key, round, pitchId, votes }
 const voteUnsub = {}; // quizId -> unsubscribe fn
 let unsubSession = null;
 let unsubParticipants = null;
+let activeDrawRunId = null; // runId dont l'animation de tirage est déjà lancée localement
 
 // ---------- Confirm modal ----------
 function confirmModal(message) {
@@ -127,7 +128,7 @@ function buildQuizDom() {
   ).join("");
   container.innerHTML = QUIZ_IDS.map(
     (quizId) => `
-      <section id="view-${quizId}" class="view" data-quiz-id="${quizId}">
+      <section id="view-${quizId}" class="view stage-view" data-quiz-id="${quizId}">
         <div id="tab-${quizId}"></div>
       </section>`
   ).join("");
@@ -136,13 +137,14 @@ function buildQuizDom() {
 function showView(name) {
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   document.getElementById(`view-${name}`).classList.add("active");
-  document.getElementById("app").classList.toggle("stage-mode", QUIZ_IDS.includes(name));
+  document.getElementById("app").classList.toggle("stage-mode", QUIZ_IDS.includes(name) || name === "draw");
   document.getElementById("home-nav-btn").classList.toggle("hidden", name === "home");
 }
 
 function initViews() {
   document.getElementById("home-nav-btn").addEventListener("click", () => showView("home"));
   document.getElementById("session-mgmt-btn").addEventListener("click", () => showView("session"));
+  document.getElementById("gift-btn").addEventListener("click", () => launchDraw());
   document.querySelectorAll(".quiz-home-btn").forEach((btn) => {
     btn.addEventListener("click", () => showView(btn.dataset.quiz));
   });
@@ -226,6 +228,7 @@ function renderAll() {
 
   renderParticipants();
   renderHome();
+  renderDraw();
   QUIZ_IDS.forEach((quizId) => {
     manageVoteListener(quizId);
     renderQuizPanel(quizId);
@@ -241,19 +244,21 @@ function renderHome() {
 }
 
 function quizStatusLabel(quizId) {
-  if (!currentSession || currentSession.activeQuizId !== quizId) return "Non commencé";
-  switch (currentSession.phase) {
+  const quizState = currentSession && currentSession.quizzes && currentSession.quizzes[quizId];
+  if (!quizState || !quizState.phase || quizState.phase === "waiting") return "Non commencé";
+  const pausedTag = currentSession.activeQuizId === quizId ? "" : " (en pause)";
+  switch (quizState.phase) {
     case "round1-voting":
-      return `En cours — manche 1 (${currentSession.round1PitchIndex + 1}/${configs[quizId].round1.pitches.length})`;
+      return `En cours — manche 1 (${quizState.round1PitchIndex + 1}/${configs[quizId].round1.pitches.length})${pausedTag}`;
     case "round1-final":
-      return "En cours — classement manche 1";
+      return `En cours — classement manche 1${pausedTag}`;
     case "round2-voting":
     case "round2-pitch-result":
-      return `En cours — manche 2 (${currentSession.round2PitchIndex + 1}/${currentSession.selectedPitchIds.length})`;
+      return `En cours — manche 2 (${quizState.round2PitchIndex + 1}/${quizState.selectedPitchIds.length})${pausedTag}`;
     case "quiz-done":
       return "Terminé";
     default:
-      return "En cours";
+      return `En cours${pausedTag}`;
   }
 }
 
@@ -280,16 +285,17 @@ function renderParticipants() {
 // ---------- Vote listener management ----------
 function computeListenerSpec(quizId, session) {
   if (!session || session.activeQuizId !== quizId) return null;
-  const config = configs[quizId];
-  if (session.phase === "round1-voting") {
-    const pitch = config.round1.pitches[session.round1PitchIndex];
+  const quizState = session.quizzes && session.quizzes[quizId];
+  if (!quizState) return null;
+  if (quizState.phase === "round1-voting") {
+    const pitch = configs[quizId].round1.pitches[quizState.round1PitchIndex];
     if (!pitch) return null;
-    return { key: `${session.activeRunId}-r1-${session.round1PitchIndex}`, round: 1, pitchId: pitch.id };
+    return { key: `${quizState.activeRunId}-r1-${quizState.round1PitchIndex}`, round: 1, pitchId: pitch.id, runId: quizState.activeRunId };
   }
-  if (session.phase === "round2-voting" || session.phase === "round2-pitch-result") {
-    const pitchId = session.selectedPitchIds[session.round2PitchIndex];
+  if (quizState.phase === "round2-voting" || quizState.phase === "round2-pitch-result") {
+    const pitchId = quizState.selectedPitchIds[quizState.round2PitchIndex];
     if (!pitchId) return null;
-    return { key: `${session.activeRunId}-r2-${session.round2PitchIndex}`, round: 2, pitchId };
+    return { key: `${quizState.activeRunId}-r2-${quizState.round2PitchIndex}`, round: 2, pitchId, runId: quizState.activeRunId };
   }
   return null;
 }
@@ -308,9 +314,8 @@ function manageVoteListener(quizId) {
     delete voteData[quizId];
     return;
   }
-  const runId = currentSession.activeRunId;
   voteData[quizId] = { key: spec.key, round: spec.round, pitchId: spec.pitchId, votes: [] };
-  voteUnsub[quizId] = listenVotesForPitch(currentCode, quizId, runId, spec.round, spec.pitchId, (votes) => {
+  voteUnsub[quizId] = listenVotesForPitch(currentCode, quizId, spec.runId, spec.round, spec.pitchId, (votes) => {
     voteData[quizId] = { key: spec.key, round: spec.round, pitchId: spec.pitchId, votes };
     renderQuizPanel(quizId);
   });
@@ -327,30 +332,41 @@ function renderQuizPanel(quizId) {
     return;
   }
 
-  if (currentSession.activeQuizId !== quizId) {
-    const anotherActive = currentSession.activeQuizId && currentSession.activeQuizId !== quizId;
+  const quizState = currentSession.quizzes && currentSession.quizzes[quizId];
+
+  if (!quizState || !quizState.phase || quizState.phase === "waiting") {
     el.innerHTML = `
       <div class="card center stack" style="max-width:480px;margin:0 auto">
         <h2>${config.name}</h2>
         <p class="muted">${config.round1.pitches.length} pitchs — les ${config.round1.selectCount} meilleurs passent en manche 2</p>
-        ${anotherActive ? `<p class="muted">Un autre quiz (${currentSession.activeQuizId}) est en cours. Termine-le avant de démarrer celui-ci.</p>` : ""}
-        <button id="start-${quizId}" ${anotherActive ? "disabled" : ""}>Démarrer ce quiz</button>
+        <button id="start-${quizId}">Démarrer ce quiz</button>
       </div>`;
-    document.getElementById(`start-${quizId}`)?.addEventListener("click", () => startQuiz(quizId));
+    document.getElementById(`start-${quizId}`).addEventListener("click", () => startQuiz(quizId));
     return;
   }
 
-  const session = currentSession;
+  if (currentSession.activeQuizId !== quizId) {
+    el.innerHTML = `
+      <div class="card center stack" style="max-width:480px;margin:0 auto">
+        <h2>${config.name}</h2>
+        <p class="muted">${quizStatusLabel(quizId)}</p>
+        <p class="muted">Ce quiz est en pause — un autre quiz est affiché en ce moment.</p>
+        <button id="resume-${quizId}">Reprendre ce quiz</button>
+      </div>`;
+    document.getElementById(`resume-${quizId}`).addEventListener("click", () => resumeQuiz(quizId));
+    return;
+  }
+
   const votes = voteData[quizId] ? voteData[quizId].votes : [];
 
-  if (session.phase === "round1-voting") {
-    const pitch = config.round1.pitches[session.round1PitchIndex];
-    const isLast = session.round1PitchIndex === config.round1.pitches.length - 1;
+  if (quizState.phase === "round1-voting") {
+    const pitch = config.round1.pitches[quizState.round1PitchIndex];
+    const isLast = quizState.round1PitchIndex === config.round1.pitches.length - 1;
     const total = votes.length;
 
     el.innerHTML = `
       <div class="card stack" style="max-width:1100px">
-        <span class="badge">Manche 1 — Pitch ${session.round1PitchIndex + 1}/${config.round1.pitches.length}</span>
+        <span class="badge">Manche 1 — Pitch ${quizState.round1PitchIndex + 1}/${config.round1.pitches.length}</span>
         <h2 class="pitch-title">${escapeHtml(pitch.title)}</h2>
         <p class="pitch-text">${escapeHtml(pitch.pitch)}</p>
         <p class="muted">${total} vote${total > 1 ? "s" : ""} reçu${total > 1 ? "s" : ""} — ${participants.filter((p) => !p.excluded).length} inscrits</p>
@@ -363,8 +379,8 @@ function renderQuizPanel(quizId) {
     return;
   }
 
-  if (session.phase === "round1-final") {
-    const ranking = (session.round1Results || []).filter((r) => session.selectedPitchIds.includes(r.pitchId));
+  if (quizState.phase === "round1-final") {
+    const ranking = (quizState.round1Results || []).filter((r) => quizState.selectedPitchIds.includes(r.pitchId));
     el.innerHTML = `
       <div class="card stack" style="max-width:640px">
         <span class="badge">Manche 1 — Classement final</span>
@@ -384,17 +400,17 @@ function renderQuizPanel(quizId) {
     return;
   }
 
-  if (session.phase === "round2-voting" || session.phase === "round2-pitch-result") {
-    const pitchId = session.selectedPitchIds[session.round2PitchIndex];
+  if (quizState.phase === "round2-voting" || quizState.phase === "round2-pitch-result") {
+    const pitchId = quizState.selectedPitchIds[quizState.round2PitchIndex];
     const pitch = config.round1.pitches.find((p) => p.id === pitchId);
     const options = pitch.presentationOptions;
-    const isLast = session.round2PitchIndex === session.selectedPitchIds.length - 1;
+    const isLast = quizState.round2PitchIndex === quizState.selectedPitchIds.length - 1;
     const counts = options.map((_, i) => votes.filter((v) => v.optionIndex === i).length);
     const total = votes.length;
 
     el.innerHTML = `
       <div class="card stack" style="max-width:1100px">
-        <span class="badge">Manche 2 — Pièce ${session.round2PitchIndex + 1}/${session.selectedPitchIds.length}</span>
+        <span class="badge">Manche 2 — Pièce ${quizState.round2PitchIndex + 1}/${quizState.selectedPitchIds.length}</span>
         <h2 class="pitch-title">${escapeHtml(pitch.title)}</h2>
         <p class="pitch-text">${escapeHtml(pitch.pitch)}</p>
         <p class="muted">${total} vote${total > 1 ? "s" : ""} reçu${total > 1 ? "s" : ""}</p>
@@ -411,23 +427,23 @@ function renderQuizPanel(quizId) {
         </div>
         <div class="row" style="justify-content:center">
           ${
-            session.phase === "round2-voting"
+            quizState.phase === "round2-voting"
               ? `<button id="lock-r2">Verrouiller et voir le résultat</button>`
               : `<button id="next-r2">${isLast ? "Terminer le quiz" : "Pièce suivante"}</button>`
           }
         </div>
       </div>`;
 
-    if (session.phase === "round2-voting") {
-      document.getElementById("lock-r2").addEventListener("click", () => lockRound2Pitch());
+    if (quizState.phase === "round2-voting") {
+      document.getElementById("lock-r2").addEventListener("click", () => lockRound2Pitch(quizId));
     } else {
       document.getElementById("next-r2").addEventListener("click", () => nextRound2Pitch(quizId));
     }
     return;
   }
 
-  if (session.phase === "quiz-done") {
-    const results = session.round2Results || [];
+  if (quizState.phase === "quiz-done") {
+    const results = quizState.round2Results || [];
     el.innerHTML = `
       <div class="card stack" style="max-width:640px;margin:0 auto">
         <span class="badge">Quiz terminé</span>
@@ -443,7 +459,7 @@ function renderQuizPanel(quizId) {
           <button class="secondary" id="reset-quiz">Réinitialiser ce quiz</button>
         </div>
       </div>`;
-    document.getElementById("reset-quiz").addEventListener("click", () => resetQuiz());
+    document.getElementById("reset-quiz").addEventListener("click", () => resetQuiz(quizId));
     return;
   }
 
@@ -454,24 +470,34 @@ function renderQuizPanel(quizId) {
 async function startQuiz(quizId) {
   await updateSession(currentCode, {
     activeQuizId: quizId,
-    activeRunId: generateSessionCode(8),
-    phase: "round1-voting",
-    round1PitchIndex: 0,
-    round1Results: null,
-    selectedPitchIds: [],
-    round2PitchIndex: 0,
-    round2Results: null
+    [`quizzes.${quizId}`]: {
+      activeRunId: generateSessionCode(8),
+      phase: "round1-voting",
+      round1PitchIndex: 0,
+      round1Results: null,
+      selectedPitchIds: [],
+      round2PitchIndex: 0,
+      round2Results: null
+    }
   });
+}
+
+async function resumeQuiz(quizId) {
+  await updateSession(currentCode, { activeQuizId: quizId });
 }
 
 async function nextRound1Pitch(quizId) {
   const config = configs[quizId];
-  const nextIndex = currentSession.round1PitchIndex + 1;
+  const quizState = currentSession.quizzes[quizId];
+  const nextIndex = quizState.round1PitchIndex + 1;
   if (nextIndex < config.round1.pitches.length) {
-    await updateSession(currentCode, { phase: "round1-voting", round1PitchIndex: nextIndex });
+    await updateSession(currentCode, {
+      [`quizzes.${quizId}.phase`]: "round1-voting",
+      [`quizzes.${quizId}.round1PitchIndex`]: nextIndex
+    });
     return;
   }
-  const votes = await getVotesForQuizRound(currentCode, quizId, currentSession.activeRunId, 1);
+  const votes = await getVotesForQuizRound(currentCode, quizId, quizState.activeRunId, 1);
   const totals = {};
   config.round1.pitches.forEach((p) => (totals[p.id] = 0));
   votes.forEach((v) => {
@@ -482,29 +508,36 @@ async function nextRound1Pitch(quizId) {
     .sort((a, b) => b.points - a.points);
   const selectedPitchIds = ranking.slice(0, config.round1.selectCount).map((r) => r.pitchId);
   await updateSession(currentCode, {
-    phase: "round1-final",
-    round1Results: ranking,
-    selectedPitchIds
+    [`quizzes.${quizId}.phase`]: "round1-final",
+    [`quizzes.${quizId}.round1Results`]: ranking,
+    [`quizzes.${quizId}.selectedPitchIds`]: selectedPitchIds
   });
 }
 
-async function startRound2() {
-  await updateSession(currentCode, { phase: "round2-voting", round2PitchIndex: 0 });
+async function startRound2(quizId) {
+  await updateSession(currentCode, {
+    [`quizzes.${quizId}.phase`]: "round2-voting",
+    [`quizzes.${quizId}.round2PitchIndex`]: 0
+  });
 }
 
-async function lockRound2Pitch() {
-  await updateSession(currentCode, { phase: "round2-pitch-result" });
+async function lockRound2Pitch(quizId) {
+  await updateSession(currentCode, { [`quizzes.${quizId}.phase`]: "round2-pitch-result" });
 }
 
 async function nextRound2Pitch(quizId) {
   const config = configs[quizId];
-  const nextIndex = currentSession.round2PitchIndex + 1;
-  if (nextIndex < currentSession.selectedPitchIds.length) {
-    await updateSession(currentCode, { phase: "round2-voting", round2PitchIndex: nextIndex });
+  const quizState = currentSession.quizzes[quizId];
+  const nextIndex = quizState.round2PitchIndex + 1;
+  if (nextIndex < quizState.selectedPitchIds.length) {
+    await updateSession(currentCode, {
+      [`quizzes.${quizId}.phase`]: "round2-voting",
+      [`quizzes.${quizId}.round2PitchIndex`]: nextIndex
+    });
     return;
   }
-  const votes = await getVotesForQuizRound(currentCode, quizId, currentSession.activeRunId, 2);
-  const results = currentSession.selectedPitchIds.map((pitchId) => {
+  const votes = await getVotesForQuizRound(currentCode, quizId, quizState.activeRunId, 2);
+  const results = quizState.selectedPitchIds.map((pitchId) => {
     const pitch = config.round1.pitches.find((p) => p.id === pitchId);
     const options = pitch.presentationOptions;
     const counts = options.map(
@@ -516,20 +549,132 @@ async function nextRound2Pitch(quizId) {
     });
     return { pitchId, title: pitch.title, options, counts, winningOptionIndex };
   });
-  await updateSession(currentCode, { phase: "quiz-done", round2Results: results });
+  await updateSession(currentCode, {
+    [`quizzes.${quizId}.phase`]: "quiz-done",
+    [`quizzes.${quizId}.round2Results`]: results
+  });
 }
 
-async function resetQuiz() {
-  await updateSession(currentCode, {
-    activeQuizId: null,
-    activeRunId: null,
-    phase: "waiting",
-    round1PitchIndex: 0,
-    round1Results: null,
-    selectedPitchIds: [],
-    round2PitchIndex: 0,
-    round2Results: null
+async function resetQuiz(quizId) {
+  const updates = {
+    [`quizzes.${quizId}`]: {
+      activeRunId: null,
+      phase: "waiting",
+      round1PitchIndex: 0,
+      round1Results: null,
+      selectedPitchIds: [],
+      round2PitchIndex: 0,
+      round2Results: null
+    }
+  };
+  if (currentSession.activeQuizId === quizId) {
+    updates.activeQuizId = null;
+  }
+  await updateSession(currentCode, updates);
+}
+
+// ---------- Tirage au sort ----------
+async function launchDraw() {
+  const eligible = participants.filter((p) => !p.excluded);
+  showView("draw");
+  const el = document.getElementById("draw-content");
+
+  if (eligible.length === 0) {
+    activeDrawRunId = null;
+    el.innerHTML = `<div class="card center"><p class="muted">Aucun participant inscrit pour l'instant.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="draw-stage">
+      <span class="badge">Tirage au sort</span>
+      <div class="draw-number">•••</div>
+      <p class="muted">Préparation du tirage...</p>
+    </div>`;
+
+  const shuffled = [...eligible].sort(() => Math.random() - 0.5);
+  const tickets = {};
+  shuffled.forEach((p, i) => {
+    tickets[p.id] = i + 1;
   });
+
+  await updateSession(currentCode, {
+    draw: { runId: generateSessionCode(8), status: "drawing", tickets, winnerId: null }
+  });
+}
+
+function renderDraw() {
+  const el = document.getElementById("draw-content");
+  if (!el) return;
+  const draw = currentSession && currentSession.draw;
+
+  if (!draw) {
+    activeDrawRunId = null;
+    el.innerHTML = `<div class="card center"><p class="muted">Aucun tirage pour l'instant — clique sur 🎁 depuis l'accueil.</p></div>`;
+    return;
+  }
+
+  if (draw.status === "revealed") {
+    activeDrawRunId = draw.runId;
+    const winner = participants.find((p) => p.id === draw.winnerId);
+    el.innerHTML = `
+      <div class="draw-stage">
+        <span class="badge">Tirage au sort</span>
+        <div class="draw-number draw-number-landed">${formatTicket(draw.tickets[draw.winnerId])}</div>
+        <div class="draw-winner-name">🎉 ${escapeHtml(winner ? winner.name : "?")} 🎉</div>
+      </div>`;
+    return;
+  }
+
+  if (activeDrawRunId === draw.runId) return;
+  activeDrawRunId = draw.runId;
+  startDrawAnimation(draw);
+}
+
+function formatTicket(n) {
+  return `N° ${String(n).padStart(3, "0")}`;
+}
+
+function startDrawAnimation(draw) {
+  const el = document.getElementById("draw-content");
+  const ids = Object.keys(draw.tickets);
+  const numbers = Object.values(draw.tickets);
+  const winnerId = ids[Math.floor(Math.random() * ids.length)];
+  const winningNumber = draw.tickets[winnerId];
+
+  el.innerHTML = `
+    <div class="draw-stage">
+      <span class="badge">Tirage au sort</span>
+      <div class="draw-number" id="draw-number">${formatTicket(numbers[0])}</div>
+      <p class="muted" id="draw-status">Mélange des tickets...</p>
+    </div>`;
+
+  const numberEl = document.getElementById("draw-number");
+  const statusEl = document.getElementById("draw-status");
+  const start = Date.now();
+  const totalDuration = 2800;
+
+  function tick() {
+    if (activeDrawRunId !== draw.runId) return;
+    const elapsed = Date.now() - start;
+    if (elapsed >= totalDuration) {
+      numberEl.textContent = formatTicket(winningNumber);
+      numberEl.classList.add("draw-number-landed");
+      statusEl.textContent = "Et le/la gagnant·e est...";
+      setTimeout(() => {
+        if (activeDrawRunId !== draw.runId) return;
+        updateSession(currentCode, {
+          "draw.status": "revealed",
+          "draw.winnerId": winnerId
+        });
+      }, 2200);
+      return;
+    }
+    numberEl.textContent = formatTicket(numbers[Math.floor(Math.random() * numbers.length)]);
+    const delay = 60 + (elapsed / totalDuration) * 220;
+    setTimeout(tick, delay);
+  }
+  tick();
 }
 
 // ---------- Utils ----------

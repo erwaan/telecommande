@@ -10,6 +10,7 @@ let currentCode = null;
 let unsubSession = null;
 let unsubParticipant = null;
 const myVotes = {}; // voteKey -> optionIndex (état local, optimiste)
+let celebratedRunId = null; // runId du tirage déjà fêté, pour ne pas relancer les confettis en boucle
 
 async function boot() {
   let user;
@@ -105,6 +106,7 @@ function subscribe(code, name) {
       return;
     }
     renderContent(session);
+    renderTicket(session);
   });
 
   unsubParticipant = listenParticipant(code, uid, (participant) => {
@@ -135,16 +137,19 @@ function waitingScreen(emoji, text) {
 function renderContent(session) {
   const content = document.getElementById("content");
 
-  if (!session.activeQuizId || session.phase === "waiting") {
+  const quizId = session.activeQuizId;
+  const quizState = quizId && session.quizzes ? session.quizzes[quizId] : null;
+
+  if (!quizId || !quizState || !quizState.phase || quizState.phase === "waiting") {
     content.innerHTML = waitingScreen("⏳", "En attente du début du quiz...");
     return;
   }
 
-  const config = configs[session.activeQuizId];
+  const config = configs[quizId];
 
-  if (session.phase === "round1-voting") {
-    const pitch = config.round1.pitches[session.round1PitchIndex];
-    const key = `${session.activeQuizId}-${session.activeRunId}-r1-${session.round1PitchIndex}`;
+  if (quizState.phase === "round1-voting") {
+    const pitch = config.round1.pitches[quizState.round1PitchIndex];
+    const key = `${quizId}-${quizState.activeRunId}-r1-${quizState.round1PitchIndex}`;
     renderVoteButtons(content, {
       title: pitch.title,
       text: pitch.pitch,
@@ -152,8 +157,8 @@ function renderContent(session) {
       voteKey: key,
       onVote: (i) => {
         castVote(currentCode, {
-          quizId: session.activeQuizId,
-          runId: session.activeRunId,
+          quizId,
+          runId: quizState.activeRunId,
           round: 1,
           pitchId: pitch.id,
           participantId: uid,
@@ -167,11 +172,11 @@ function renderContent(session) {
     return;
   }
 
-  if (session.phase === "round2-voting") {
-    const pitchId = session.selectedPitchIds[session.round2PitchIndex];
+  if (quizState.phase === "round2-voting") {
+    const pitchId = quizState.selectedPitchIds[quizState.round2PitchIndex];
     const pitch = config.round1.pitches.find((p) => p.id === pitchId);
     const options = pitch.presentationOptions;
-    const key = `${session.activeQuizId}-${session.activeRunId}-r2-${session.round2PitchIndex}`;
+    const key = `${quizId}-${quizState.activeRunId}-r2-${quizState.round2PitchIndex}`;
     renderVoteButtons(content, {
       title: pitch.title,
       text: pitch.pitch,
@@ -179,8 +184,8 @@ function renderContent(session) {
       voteKey: key,
       onVote: (i) => {
         castVote(currentCode, {
-          quizId: session.activeQuizId,
-          runId: session.activeRunId,
+          quizId,
+          runId: quizState.activeRunId,
           round: 2,
           pitchId,
           participantId: uid,
@@ -194,7 +199,7 @@ function renderContent(session) {
     return;
   }
 
-  if (session.phase === "quiz-done") {
+  if (quizState.phase === "quiz-done") {
     content.innerHTML = waitingScreen("🎉", "Quiz terminé ! Regarde l'écran pour le récapitulatif.");
     return;
   }
@@ -228,6 +233,53 @@ function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str ?? "";
   return div.innerHTML;
+}
+
+// ---------- Ticket de tombola / tirage au sort ----------
+function renderTicket(session) {
+  const badge = document.getElementById("ticket-badge");
+  const draw = session.draw;
+  const myNumber = draw && draw.tickets ? draw.tickets[uid] : null;
+
+  if (myNumber == null) {
+    badge.classList.add("hidden");
+    return;
+  }
+  badge.classList.remove("hidden");
+  document.getElementById("ticket-number").textContent = `N° ${String(myNumber).padStart(3, "0")}`;
+
+  if (draw.status === "revealed" && draw.winnerId === uid && celebratedRunId !== draw.runId) {
+    celebratedRunId = draw.runId;
+    celebrateWin();
+  }
+}
+
+function celebrateWin() {
+  const overlay = document.getElementById("winner-overlay");
+  overlay.classList.remove("hidden");
+  spawnConfetti();
+  setTimeout(() => overlay.classList.add("hidden"), 6000);
+}
+
+function spawnConfetti() {
+  const container = document.getElementById("confetti-container");
+  container.innerHTML = "";
+  const colors = [
+    "var(--color-magenta)",
+    "var(--color-purple)",
+    "var(--color-orange)",
+    "var(--color-yellow)",
+    "var(--color-pink-pale)"
+  ];
+  for (let i = 0; i < 80; i++) {
+    const piece = document.createElement("span");
+    piece.className = "confetti-piece";
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+    piece.style.animationDelay = `${Math.random() * 0.6}s`;
+    piece.style.animationDuration = `${2 + Math.random() * 1.5}s`;
+    container.appendChild(piece);
+  }
 }
 
 boot();

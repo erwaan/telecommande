@@ -37,6 +37,7 @@ export async function createSession() {
   await setDoc(sessionRef, {
     status: "active",
     createdAt: serverTimestamp(),
+    activeScreen: null,
     activeQuizId: null,
     quizzes: {}
   });
@@ -157,9 +158,11 @@ export async function getVotesForQuizRound(code, quizId, runId, round) {
 }
 
 // ---------- Tirage au sort : inscription d'un participant ----------
-// Attribue un numéro de ticket séquentiel (1, 2, 3...) de façon atomique via
-// une transaction, pour éviter les doublons quand plusieurs téléphones
-// s'inscrivent en même temps.
+// Attribue un numéro de ticket aléatoire entre 1 et 9999 de façon atomique via
+// une transaction, pour éviter que deux téléphones se retrouvent avec le même
+// numéro quand plusieurs s'inscrivent en même temps.
+const TICKET_MAX = 9999;
+
 export async function registerForDraw(code, participantId, avis) {
   const sessionRef = doc(db, "sessions", code);
   const participantRef = doc(db, "sessions", code, "participants", participantId);
@@ -169,8 +172,15 @@ export async function registerForDraw(code, participantId, avis) {
     if (!draw || draw.status !== "registration") {
       throw new Error("REGISTRATION_CLOSED");
     }
-    const ticketNumber = (draw.count || 0) + 1;
-    tx.update(sessionRef, { "draw.count": ticketNumber });
+    const usedNumbers = draw.usedNumbers || [];
+    let ticketNumber;
+    do {
+      ticketNumber = 1 + Math.floor(Math.random() * TICKET_MAX);
+    } while (usedNumbers.includes(ticketNumber));
+    tx.update(sessionRef, {
+      "draw.count": (draw.count || 0) + 1,
+      "draw.usedNumbers": [...usedNumbers, ticketNumber]
+    });
     tx.update(participantRef, {
       avis,
       drawRunId: draw.runId,

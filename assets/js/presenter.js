@@ -470,6 +470,7 @@ function renderQuizPanel(quizId) {
 // ---------- State transitions ----------
 async function startQuiz(quizId) {
   await updateSession(currentCode, {
+    activeScreen: "quiz",
     activeQuizId: quizId,
     [`quizzes.${quizId}`]: {
       activeRunId: generateSessionCode(8),
@@ -484,7 +485,7 @@ async function startQuiz(quizId) {
 }
 
 async function resumeQuiz(quizId) {
-  await updateSession(currentCode, { activeQuizId: quizId });
+  await updateSession(currentCode, { activeScreen: "quiz", activeQuizId: quizId });
 }
 
 async function nextRound1Pitch(quizId) {
@@ -578,7 +579,8 @@ async function resetQuiz(quizId) {
 async function launchDraw() {
   showView("draw");
   await updateSession(currentCode, {
-    draw: { runId: generateSessionCode(8), status: "registration", count: 0, winnerId: null }
+    activeScreen: "draw",
+    draw: { runId: generateSessionCode(8), status: "registration", count: 0, winnerId: null, winnerIds: [] }
   });
 }
 
@@ -586,6 +588,18 @@ function drawEligibleParticipants(draw) {
   return participants.filter(
     (p) => !p.excluded && p.drawRunId === draw.runId && p.ticketNumber != null
   );
+}
+
+// Identifie une animation de tirage précise : un "redraw" garde le même runId
+// (les inscriptions ne sont pas remises à zéro) mais incrémente drawSeq, pour
+// distinguer ce nouveau tirage du précédent qui a le même runId.
+function drawKey(draw) {
+  return `${draw.runId}-${draw.drawSeq || 1}`;
+}
+
+function remainingDrawCandidates(draw) {
+  const winnerIds = draw.winnerIds || [];
+  return drawEligibleParticipants(draw).filter((p) => !winnerIds.includes(p.id));
 }
 
 async function startDrawing() {
@@ -601,7 +615,23 @@ async function startDrawing() {
 
   await updateSession(currentCode, {
     "draw.status": "drawing",
-    "draw.tickets": tickets
+    "draw.tickets": tickets,
+    "draw.drawSeq": 1,
+    "draw.winnerIds": []
+  });
+}
+
+// Retire un nom parmi les inscrits qui n'ont pas encore été tirés (ex: le
+// premier gagnant est déjà parti), sans rouvrir les inscriptions : les avis
+// et cases à cocher déjà transmis par les autres participants ne sont pas
+// redemandés.
+async function redrawWinner() {
+  const draw = currentSession && currentSession.draw;
+  if (!draw || draw.status !== "revealed") return;
+  if (remainingDrawCandidates(draw).length === 0) return;
+  await updateSession(currentCode, {
+    "draw.status": "drawing",
+    "draw.drawSeq": (draw.drawSeq || 1) + 1
   });
 }
 
@@ -623,19 +653,28 @@ function renderDraw() {
   }
 
   if (draw.status === "revealed") {
-    activeDrawRunId = draw.runId;
+    activeDrawRunId = drawKey(draw);
     const winner = participants.find((p) => p.id === draw.winnerId);
+    const remaining = remainingDrawCandidates(draw);
     el.innerHTML = `
       <div class="draw-stage">
         <span class="badge">Tirage au sort</span>
         <div class="draw-number draw-number-landed">${formatTicket(draw.tickets[draw.winnerId])}</div>
         <div class="draw-winner-name">🎉 ${escapeHtml(winner ? winner.name : "?")} 🎉</div>
+        ${
+          remaining.length > 0
+            ? `<button id="redraw-btn" class="secondary">Tirer un autre nom</button>`
+            : `<p class="muted">Tous les inscrits ont déjà été tirés au sort.</p>`
+        }
       </div>`;
+    const redrawBtn = document.getElementById("redraw-btn");
+    if (redrawBtn) redrawBtn.addEventListener("click", redrawWinner);
     return;
   }
 
-  if (activeDrawRunId === draw.runId) return;
-  activeDrawRunId = draw.runId;
+  const key = drawKey(draw);
+  if (activeDrawRunId === key) return;
+  activeDrawRunId = key;
   startDrawAnimation(draw);
 }
 
@@ -656,15 +695,18 @@ function renderDrawRegistration(draw) {
 }
 
 function formatTicket(n) {
-  return `N° ${String(n).padStart(3, "0")}`;
+  return `N° ${String(n).padStart(4, "0")}`;
 }
 
 function startDrawAnimation(draw) {
   const el = document.getElementById("draw-content");
-  const ids = Object.keys(draw.tickets);
+  const winnerIds = draw.winnerIds || [];
   const numbers = Object.values(draw.tickets);
-  const winnerId = ids[Math.floor(Math.random() * ids.length)];
+  const eligibleIds = Object.keys(draw.tickets).filter((id) => !winnerIds.includes(id));
+  if (eligibleIds.length === 0) return;
+  const winnerId = eligibleIds[Math.floor(Math.random() * eligibleIds.length)];
   const winningNumber = draw.tickets[winnerId];
+  const key = drawKey(draw);
 
   el.innerHTML = `
     <div class="draw-stage">
@@ -679,17 +721,18 @@ function startDrawAnimation(draw) {
   const totalDuration = 2800;
 
   function tick() {
-    if (activeDrawRunId !== draw.runId) return;
+    if (activeDrawRunId !== key) return;
     const elapsed = Date.now() - start;
     if (elapsed >= totalDuration) {
       numberEl.textContent = formatTicket(winningNumber);
       numberEl.classList.add("draw-number-landed");
       statusEl.textContent = "Et le/la gagnant·e est...";
       setTimeout(() => {
-        if (activeDrawRunId !== draw.runId) return;
+        if (activeDrawRunId !== key) return;
         updateSession(currentCode, {
           "draw.status": "revealed",
-          "draw.winnerId": winnerId
+          "draw.winnerId": winnerId,
+          "draw.winnerIds": [...winnerIds, winnerId]
         });
       }, 2200);
       return;

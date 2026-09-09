@@ -146,10 +146,17 @@ function renderContent(session) {
   const content = document.getElementById("content");
 
   const draw = session.draw;
-  if (draw && draw.status) {
+  // "activeScreen" indique quel écran le présentateur affiche en ce moment :
+  // le tirage au sort reste en mémoire dans la session même quand le
+  // présentateur retourne sur un quiz, donc on ne l'affiche que si c'est
+  // vraiment l'écran actif (sinon le téléphone resterait bloqué dessus).
+  if (draw && draw.status && session.activeScreen === "draw") {
     renderDrawArea(content, draw);
     return;
   }
+  // On quitte l'écran du tirage : on oublie la clé mémorisée pour que le
+  // formulaire soit bien reconstruit si on y revient plus tard.
+  content.dataset.viewKey = "";
 
   const quizId = session.activeQuizId;
   const quizState = quizId && session.quizzes ? session.quizzes[quizId] : null;
@@ -259,10 +266,19 @@ function renderDrawArea(content, draw) {
       content.innerHTML = waitingScreen("🎟️", "Le tirage au sort est en cours...");
       return;
     }
-    renderDrawForm(content);
+    // Le formulaire ne doit être (re)construit qu'une fois par tirage : d'autres
+    // participants qui s'inscrivent en même temps déclenchent des mises à jour
+    // de session (draw.count) qui ne concernent pas cet écran, et régénérer le
+    // formulaire à chaque fois effacerait l'avis et la case déjà remplis.
+    const formKey = `draw-form-${draw.runId}`;
+    if (content.dataset.viewKey !== formKey) {
+      content.dataset.viewKey = formKey;
+      renderDrawForm(content);
+    }
     return;
   }
 
+  content.dataset.viewKey = "";
   renderDrawTicket(content, draw);
 }
 
@@ -316,7 +332,7 @@ function renderDrawTicket(content, draw) {
     <div class="stack center draw-ticket-screen">
       <div class="raffle-ticket">
         <span class="raffle-ticket-label">Ticket de tombola</span>
-        <span class="raffle-ticket-number">N° ${String(currentParticipant.ticketNumber).padStart(3, "0")}</span>
+        <span class="raffle-ticket-number">N° ${String(currentParticipant.ticketNumber).padStart(4, "0")}</span>
         <span class="raffle-ticket-name">${escapeHtml(currentParticipant.name)}</span>
       </div>
       <p class="muted center">${statusLine}</p>

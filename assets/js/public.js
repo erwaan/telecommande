@@ -1,5 +1,5 @@
 import { ensureAuth } from "./firebase-init.js";
-import { joinSession, listenSession, listenParticipant, castVote } from "./session-service.js";
+import { joinSession, listenSession, listenParticipant, castVote, registerForDraw } from "./session-service.js";
 import { loadQuizConfigs } from "./quiz-config.js";
 
 const STORAGE_KEY = "quizJoin";
@@ -11,6 +11,8 @@ let unsubSession = null;
 let unsubParticipant = null;
 const myVotes = {}; // voteKey -> optionIndex (état local, optimiste)
 let celebratedRunId = null; // runId du tirage déjà fêté, pour ne pas relancer les confettis en boucle
+let currentParticipant = null;
+let lastSession = null;
 
 async function boot() {
   let user;
@@ -105,14 +107,18 @@ function subscribe(code, name) {
       returnToJoin("La session est terminée.");
       return;
     }
+    lastSession = session;
     renderContent(session);
-    renderTicket(session);
+    checkWinnerCelebration(session);
   });
 
   unsubParticipant = listenParticipant(code, uid, (participant) => {
     if (participant && participant.excluded) {
       returnToJoin("Tu as été exclu de cette session.");
+      return;
     }
+    currentParticipant = participant;
+    if (lastSession) renderContent(lastSession);
   });
 }
 
@@ -122,6 +128,8 @@ function returnToJoin(message) {
   unsubSession = null;
   unsubParticipant = null;
   currentCode = null;
+  currentParticipant = null;
+  lastSession = null;
   clearStoredJoin();
   document.getElementById("session-view").classList.add("hidden");
   document.getElementById("join-view").classList.remove("hidden");
@@ -136,6 +144,12 @@ function waitingScreen(emoji, text) {
 
 function renderContent(session) {
   const content = document.getElementById("content");
+
+  const draw = session.draw;
+  if (draw && draw.status) {
+    renderDrawArea(content, draw);
+    return;
+  }
 
   const quizId = session.activeQuizId;
   const quizState = quizId && session.quizzes ? session.quizzes[quizId] : null;
@@ -235,20 +249,83 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// ---------- Ticket de tombola / tirage au sort ----------
-function renderTicket(session) {
-  const badge = document.getElementById("ticket-badge");
-  const draw = session.draw;
-  const myNumber = draw && draw.tickets ? draw.tickets[uid] : null;
+// ---------- Tirage au sort ----------
+function renderDrawArea(content, draw) {
+  const registered =
+    currentParticipant && currentParticipant.drawRunId === draw.runId && currentParticipant.ticketNumber != null;
 
-  if (myNumber == null) {
-    badge.classList.add("hidden");
+  if (!registered) {
+    if (draw.status !== "registration") {
+      content.innerHTML = waitingScreen("🎟️", "Le tirage au sort est en cours...");
+      return;
+    }
+    renderDrawForm(content);
     return;
   }
-  badge.classList.remove("hidden");
-  document.getElementById("ticket-number").textContent = `N° ${String(myNumber).padStart(3, "0")}`;
 
-  if (draw.status === "revealed" && draw.winnerId === uid && celebratedRunId !== draw.runId) {
+  renderDrawTicket(content, draw);
+}
+
+function renderDrawForm(content) {
+  content.innerHTML = `
+    <div class="stack draw-registration">
+      <h2 class="center">Merci d'être venu !</h2>
+      <p class="center">Pour vous remercier, gagnez 2 places pour le spectacle de votre choix</p>
+      <label for="draw-avis">Votre avis sur la présentation</label>
+      <textarea id="draw-avis" rows="4" placeholder="Qu'avez-vous pensé de la présentation ?"></textarea>
+      <label class="checkbox-row">
+        <input type="checkbox" id="draw-consent" />
+        <span>Je souhaite participer au tirage au sort et j'accepte de transmettre mon nom et mon avis aux organisateurs de l'événement.</span>
+      </label>
+      <p id="draw-form-error" class="muted hidden"></p>
+      <button id="draw-submit-btn" disabled>Je participe !</button>
+    </div>`;
+
+  const avisEl = document.getElementById("draw-avis");
+  const consentEl = document.getElementById("draw-consent");
+  const errorEl = document.getElementById("draw-form-error");
+  const btn = document.getElementById("draw-submit-btn");
+
+  function updateBtn() {
+    btn.disabled = !(avisEl.value.trim() && consentEl.checked);
+  }
+  avisEl.addEventListener("input", updateBtn);
+  consentEl.addEventListener("change", updateBtn);
+
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    errorEl.classList.add("hidden");
+    try {
+      await registerForDraw(currentCode, uid, avisEl.value.trim());
+    } catch (e) {
+      errorEl.textContent = "Le tirage au sort n'est plus ouvert aux inscriptions.";
+      errorEl.classList.remove("hidden");
+      updateBtn();
+    }
+  });
+}
+
+function renderDrawTicket(content, draw) {
+  let statusLine = "Ticket enregistré — bonne chance !";
+  if (draw.status === "drawing") statusLine = "Tirage en cours...";
+  if (draw.status === "revealed") {
+    statusLine =
+      draw.winnerId === uid ? "🎉 Tu as gagné ! 🎉" : "Le tirage est terminé, ce sera pour une prochaine fois !";
+  }
+  content.innerHTML = `
+    <div class="stack center draw-ticket-screen">
+      <div class="raffle-ticket">
+        <span class="raffle-ticket-label">Ticket de tombola</span>
+        <span class="raffle-ticket-number">N° ${String(currentParticipant.ticketNumber).padStart(3, "0")}</span>
+        <span class="raffle-ticket-name">${escapeHtml(currentParticipant.name)}</span>
+      </div>
+      <p class="muted center">${statusLine}</p>
+    </div>`;
+}
+
+function checkWinnerCelebration(session) {
+  const draw = session.draw;
+  if (draw && draw.status === "revealed" && draw.winnerId === uid && celebratedRunId !== draw.runId) {
     celebratedRunId = draw.runId;
     celebrateWin();
   }

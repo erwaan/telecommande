@@ -10,7 +10,8 @@ import {
   query,
   where,
   orderBy,
-  serverTimestamp
+  serverTimestamp,
+  runTransaction
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans 0/O/1/I pour éviter les confusions
@@ -153,4 +154,28 @@ export async function getVotesForQuizRound(code, quizId, runId, round) {
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => d.data());
+}
+
+// ---------- Tirage au sort : inscription d'un participant ----------
+// Attribue un numéro de ticket séquentiel (1, 2, 3...) de façon atomique via
+// une transaction, pour éviter les doublons quand plusieurs téléphones
+// s'inscrivent en même temps.
+export async function registerForDraw(code, participantId, avis) {
+  const sessionRef = doc(db, "sessions", code);
+  const participantRef = doc(db, "sessions", code, "participants", participantId);
+  return runTransaction(db, async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    const draw = sessionSnap.exists() ? sessionSnap.data().draw : null;
+    if (!draw || draw.status !== "registration") {
+      throw new Error("REGISTRATION_CLOSED");
+    }
+    const ticketNumber = (draw.count || 0) + 1;
+    tx.update(sessionRef, { "draw.count": ticketNumber });
+    tx.update(participantRef, {
+      avis,
+      drawRunId: draw.runId,
+      ticketNumber
+    });
+    return ticketNumber;
+  });
 }

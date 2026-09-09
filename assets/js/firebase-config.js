@@ -13,4 +13,4 @@ export const firebaseConfig = {
 // Code demandé à l'ouverture de la page présentateur.
 // Ce n'est PAS une vraie sécurité (vérifié côté client) : juste un garde-fou
 // contre un accès accidentel à l'écran de contrôle. Change-le librement.
-export const PRESENTER_PIN = "1234";
+export const PRESENTER_PIN = "2955";

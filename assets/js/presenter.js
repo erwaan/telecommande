@@ -184,6 +184,7 @@ function attach(code) {
   unsubParticipants = listenParticipants(code, (list) => {
     participants = list;
     renderParticipants();
+    renderDraw();
     if (currentSession && currentSession.activeQuizId) {
       renderQuizPanel(currentSession.activeQuizId);
     }
@@ -575,31 +576,32 @@ async function resetQuiz(quizId) {
 
 // ---------- Tirage au sort ----------
 async function launchDraw() {
-  const eligible = participants.filter((p) => !p.excluded);
   showView("draw");
-  const el = document.getElementById("draw-content");
+  await updateSession(currentCode, {
+    draw: { runId: generateSessionCode(8), status: "registration", count: 0, winnerId: null }
+  });
+}
 
-  if (eligible.length === 0) {
-    activeDrawRunId = null;
-    el.innerHTML = `<div class="card center"><p class="muted">Aucun participant inscrit pour l'instant.</p></div>`;
-    return;
-  }
+function drawEligibleParticipants(draw) {
+  return participants.filter(
+    (p) => !p.excluded && p.drawRunId === draw.runId && p.ticketNumber != null
+  );
+}
 
-  el.innerHTML = `
-    <div class="draw-stage">
-      <span class="badge">Tirage au sort</span>
-      <div class="draw-number">•••</div>
-      <p class="muted">Préparation du tirage...</p>
-    </div>`;
+async function startDrawing() {
+  const draw = currentSession && currentSession.draw;
+  if (!draw || draw.status !== "registration") return;
+  const eligible = drawEligibleParticipants(draw);
+  if (eligible.length === 0) return;
 
-  const shuffled = [...eligible].sort(() => Math.random() - 0.5);
   const tickets = {};
-  shuffled.forEach((p, i) => {
-    tickets[p.id] = i + 1;
+  eligible.forEach((p) => {
+    tickets[p.id] = p.ticketNumber;
   });
 
   await updateSession(currentCode, {
-    draw: { runId: generateSessionCode(8), status: "drawing", tickets, winnerId: null }
+    "draw.status": "drawing",
+    "draw.tickets": tickets
   });
 }
 
@@ -611,6 +613,12 @@ function renderDraw() {
   if (!draw) {
     activeDrawRunId = null;
     el.innerHTML = `<div class="card center"><p class="muted">Aucun tirage pour l'instant — clique sur 🎁 depuis l'accueil.</p></div>`;
+    return;
+  }
+
+  if (draw.status === "registration") {
+    activeDrawRunId = null;
+    renderDrawRegistration(draw);
     return;
   }
 
@@ -629,6 +637,22 @@ function renderDraw() {
   if (activeDrawRunId === draw.runId) return;
   activeDrawRunId = draw.runId;
   startDrawAnimation(draw);
+}
+
+function renderDrawRegistration(draw) {
+  const el = document.getElementById("draw-content");
+  const registered = drawEligibleParticipants(draw).length;
+  const total = participants.filter((p) => !p.excluded).length;
+
+  el.innerHTML = `
+    <div class="draw-stage">
+      <span class="badge">Tirage au sort</span>
+      <h2 class="draw-registration-title">Merci d'être venu !</h2>
+      <p class="draw-registration-text">Pour vous remercier, gagnez 2 places pour le spectacle de votre choix</p>
+      <p class="draw-registration-count">${registered} inscrit${registered > 1 ? "s" : ""} / ${total} joueur${total > 1 ? "s" : ""}</p>
+      <button id="start-drawing-btn" ${registered === 0 ? "disabled" : ""}>Tirer au sort</button>
+    </div>`;
+  document.getElementById("start-drawing-btn").addEventListener("click", startDrawing);
 }
 
 function formatTicket(n) {

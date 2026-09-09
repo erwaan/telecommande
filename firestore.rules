@@ -8,6 +8,14 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
+    // Avis laissés lors du tirage au sort : copie durable, indépendante des
+    // sessions, pour rester consultable même après la fin/suppression d'une session.
+    match /feedback/{feedbackId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.participantId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     match /sessions/{sessionCode} {
       allow read: if true;
       allow create, update: if request.auth != null;

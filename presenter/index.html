@@ -28,6 +28,7 @@
       </div>
       <span id="session-status-badge" class="badge">Aucune session</span>
       <div class="header-right">
+        <button class="secondary" id="feedback-nav-btn">💬 Avis</button>
         <button class="secondary" id="session-mgmt-btn">⚙ Session</button>
       </div>
     </header>
@@ -44,6 +45,17 @@
 
       <section id="view-draw" class="view stage-view">
         <div id="draw-content"></div>
+      </section>
+
+      <section id="view-feedback" class="view" style="padding:1.5rem;">
+        <div class="card stack" style="max-width:640px;margin:1.5rem auto">
+          <div class="spread">
+            <h3 style="margin:0">Avis laissés (tous les événements)</h3>
+            <span class="badge" id="feedback-count">0</span>
+          </div>
+          <p class="muted" style="margin:0">Reste disponible même après la fin ou la suppression d'une session.</p>
+          <ul class="participant-list feedback-list" id="feedback-list"></ul>
+        </div>
       </section>
 
       <section id="view-session" class="view" style="padding:1.5rem;">

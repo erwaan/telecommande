@@ -166,12 +166,17 @@ const TICKET_MAX = 9999;
 export async function registerForDraw(code, participantId, avis) {
   const sessionRef = doc(db, "sessions", code);
   const participantRef = doc(db, "sessions", code, "participants", participantId);
+  // Copie durable de l'avis dans une collection indépendante des sessions :
+  // elle reste consultable même si la session est ensuite terminée/supprimée.
+  const feedbackRef = doc(db, "feedback", `${code}_${participantId}`);
   return runTransaction(db, async (tx) => {
     const sessionSnap = await tx.get(sessionRef);
+    const participantSnap = await tx.get(participantRef);
     const draw = sessionSnap.exists() ? sessionSnap.data().draw : null;
     if (!draw || draw.status !== "registration") {
       throw new Error("REGISTRATION_CLOSED");
     }
+    const name = participantSnap.exists() ? participantSnap.data().name : "?";
     const usedNumbers = draw.usedNumbers || [];
     let ticketNumber;
     do {
@@ -186,6 +191,19 @@ export async function registerForDraw(code, participantId, avis) {
       drawRunId: draw.runId,
       ticketNumber
     });
+    tx.set(feedbackRef, {
+      code,
+      participantId,
+      name,
+      avis,
+      createdAt: serverTimestamp()
+    });
     return ticketNumber;
   });
+}
+
+// ---------- Avis : consultation durable, indépendante des sessions ----------
+export function listenAllFeedback(callback) {
+  const q = query(collection(db, "feedback"), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
 }

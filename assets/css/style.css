@@ -494,6 +494,10 @@ label {
 }
 .participant-list li:hover { outline: 2px dashed var(--color-orange); cursor: pointer; }
 .participant-list li.excluded { opacity: 0.4; text-decoration: line-through; }
+.participant-list li.has-avis { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+.participant-avis { color: var(--color-ink-dim); font-style: italic; font-size: 0.85rem; }
+.feedback-list li { flex-direction: column; align-items: stretch; gap: 0.35rem; cursor: default; }
+.feedback-list li:hover { outline: none; cursor: default; }
 
 .pitch-title {
   font-family: var(--font-accent);

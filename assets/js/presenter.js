@@ -10,7 +10,8 @@ import {
   excludeParticipant,
   listenVotesForPitch,
   getVotesForQuizRound,
-  generateSessionCode
+  generateSessionCode,
+  listenAllFeedback
 } from "./session-service.js";
 import { loadQuizConfigs } from "./quiz-config.js";
 
@@ -25,6 +26,7 @@ const voteUnsub = {}; // quizId -> unsubscribe fn
 let unsubSession = null;
 let unsubParticipants = null;
 let activeDrawRunId = null; // runId dont l'animation de tirage est déjà lancée localement
+let feedbackList = []; // avis, toutes sessions confondues (persiste même sans session active)
 
 // ---------- Confirm modal ----------
 function confirmModal(message) {
@@ -104,6 +106,13 @@ async function boot() {
   document.getElementById("end-session-btn").addEventListener("click", onEndSession);
   document.getElementById("regen-session-btn").addEventListener("click", onRegenSession);
 
+  // Écoute indépendante de toute session : les avis restent visibles même
+  // après la fin ou la suppression de la session qui les a collectés.
+  listenAllFeedback((list) => {
+    feedbackList = list;
+    renderFeedback();
+  });
+
   const activeCode = await getActiveSessionCode();
   if (activeCode) attach(activeCode);
   else renderAll();
@@ -144,6 +153,7 @@ function showView(name) {
 function initViews() {
   document.getElementById("home-nav-btn").addEventListener("click", () => showView("home"));
   document.getElementById("session-mgmt-btn").addEventListener("click", () => showView("session"));
+  document.getElementById("feedback-nav-btn").addEventListener("click", () => showView("feedback"));
   document.getElementById("gift-btn").addEventListener("click", () => launchDraw());
   document.querySelectorAll(".quiz-home-btn").forEach((btn) => {
     btn.addEventListener("click", () => showView(btn.dataset.quiz));
@@ -271,7 +281,10 @@ function renderParticipants() {
   list.innerHTML = "";
   participants.forEach((p) => {
     const li = document.createElement("li");
-    li.textContent = p.name;
+    li.innerHTML = `
+      <span class="participant-name">${escapeHtml(p.name)}</span>
+      ${p.avis ? `<span class="participant-avis">« ${escapeHtml(p.avis)} »</span>` : ""}`;
+    if (p.avis) li.classList.add("has-avis");
     if (p.excluded) li.classList.add("excluded");
     li.title = "Double-clic pour exclure";
     li.addEventListener("dblclick", async () => {
@@ -281,6 +294,32 @@ function renderParticipants() {
     });
     list.appendChild(li);
   });
+}
+
+// ---------- Avis (persistants, toutes sessions confondues) ----------
+function renderFeedback() {
+  const list = document.getElementById("feedback-list");
+  const countBadge = document.getElementById("feedback-count");
+  if (!list) return;
+  countBadge.textContent = String(feedbackList.length);
+
+  if (feedbackList.length === 0) {
+    list.innerHTML = `<li class="muted center">Aucun avis pour l'instant.</li>`;
+    return;
+  }
+
+  list.innerHTML = feedbackList
+    .map(
+      (f) => `
+      <li>
+        <div class="spread">
+          <span class="participant-name">${escapeHtml(f.name || "?")}</span>
+          <span class="muted">${escapeHtml(f.code || "")}</span>
+        </div>
+        <span class="participant-avis">« ${escapeHtml(f.avis || "")} »</span>
+      </li>`
+    )
+    .join("");
 }
 
 // ---------- Vote listener management ----------

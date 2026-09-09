@@ -163,43 +163,49 @@ export async function getVotesForQuizRound(code, quizId, runId, round) {
 // numéro quand plusieurs s'inscrivent en même temps.
 const TICKET_MAX = 9999;
 
-export async function registerForDraw(code, participantId, avis) {
+export async function registerForDraw(code, participantId, avis, name) {
   const sessionRef = doc(db, "sessions", code);
   const participantRef = doc(db, "sessions", code, "participants", participantId);
-  // Copie durable de l'avis dans une collection indépendante des sessions :
-  // elle reste consultable même si la session est ensuite terminée/supprimée.
-  const feedbackRef = doc(db, "feedback", `${code}_${participantId}`);
-  return runTransaction(db, async (tx) => {
+  const ticketNumber = await runTransaction(db, async (tx) => {
     const sessionSnap = await tx.get(sessionRef);
-    const participantSnap = await tx.get(participantRef);
     const draw = sessionSnap.exists() ? sessionSnap.data().draw : null;
     if (!draw || draw.status !== "registration") {
       throw new Error("REGISTRATION_CLOSED");
     }
-    const name = participantSnap.exists() ? participantSnap.data().name : "?";
     const usedNumbers = draw.usedNumbers || [];
-    let ticketNumber;
+    let number;
     do {
-      ticketNumber = 1 + Math.floor(Math.random() * TICKET_MAX);
-    } while (usedNumbers.includes(ticketNumber));
+      number = 1 + Math.floor(Math.random() * TICKET_MAX);
+    } while (usedNumbers.includes(number));
     tx.update(sessionRef, {
       "draw.count": (draw.count || 0) + 1,
-      "draw.usedNumbers": [...usedNumbers, ticketNumber]
+      "draw.usedNumbers": [...usedNumbers, number]
     });
     tx.update(participantRef, {
       avis,
       drawRunId: draw.runId,
-      ticketNumber
+      ticketNumber: number
     });
-    tx.set(feedbackRef, {
+    return number;
+  });
+
+  // Copie durable de l'avis, indépendante des sessions : écrite à part (pas
+  // dans la transaction ci-dessus) pour qu'un souci sur cette copie (ex. règles
+  // Firestore pas encore republiées) ne fasse jamais échouer l'inscription au
+  // tirage elle-même, qui est ce qui compte pour le participant.
+  try {
+    await setDoc(doc(db, "feedback", `${code}_${participantId}`), {
       code,
       participantId,
-      name,
+      name: name || "?",
       avis,
       createdAt: serverTimestamp()
     });
-    return ticketNumber;
-  });
+  } catch (e) {
+    console.error("Copie durable de l'avis impossible (l'inscription au tirage est quand même validée) :", e);
+  }
+
+  return ticketNumber;
 }
 
 // ---------- Avis : consultation durable, indépendante des sessions ----------

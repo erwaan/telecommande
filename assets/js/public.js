@@ -312,9 +312,14 @@ function renderDrawForm(content) {
     btn.disabled = true;
     errorEl.classList.add("hidden");
     try {
-      await registerForDraw(currentCode, uid, avisEl.value.trim());
+      await registerForDraw(currentCode, uid, avisEl.value.trim(), currentParticipant ? currentParticipant.name : null);
     } catch (e) {
-      errorEl.textContent = "Le tirage au sort n'est plus ouvert aux inscriptions.";
+      if (e.message === "REGISTRATION_CLOSED") {
+        errorEl.textContent = "Le tirage au sort n'est plus ouvert aux inscriptions.";
+      } else {
+        errorEl.textContent = "Une erreur est survenue, réessaie.";
+        console.error(e);
+      }
       errorEl.classList.remove("hidden");
       updateBtn();
     }

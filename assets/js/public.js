@@ -141,7 +141,7 @@ function renderContent(session) {
   const quizState = quizId && session.quizzes ? session.quizzes[quizId] : null;
 
   if (!quizId || !quizState || !quizState.phase || quizState.phase === "waiting") {
-    content.innerHTML = waitingScreen("⏳", "En attente du début du quiz...");
+    content.innerHTML = waitingScreen("⏳", "En attente du lancement de la présentation...");
     return;
   }
 
@@ -200,7 +200,7 @@ function renderContent(session) {
   }
 
   if (quizState.phase === "quiz-done") {
-    content.innerHTML = waitingScreen("🎉", "Quiz terminé ! Regarde l'écran pour le récapitulatif.");
+    content.innerHTML = waitingScreen("🎉", "Partie terminée ! Regarde l'écran pour le récapitulatif.");
     return;
   }
 

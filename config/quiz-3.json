@@ -1,6 +1,6 @@
 {
   "id": "quiz-3",
-  "name": "Troisième partie de saison",
+  "name": "Deuxième partie de saison",
   "round1": {
     "voteOptions": [
       { "label": "Je fonce !", "points": 3 },
@@ -14,43 +14,43 @@
         "id": "p1",
         "title": "Épopées",
         "pitch": "",
-        "presentationOptions": ["Extrait joué en live", "Le mot du directeur"]
+        "presentationOptions": ["Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
       },
       {
         "id": "p2",
         "title": "Le livre de K",
         "pitch": "",
-        "presentationOptions": ["Extrait joué en live", "Le mot du directeur"]
+        "presentationOptions": ["Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
       },
       {
         "id": "p3",
         "title": "Code : oxygène",
         "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
       },
       {
         "id": "p4",
         "title": "Voûte",
         "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
       },
       {
         "id": "p5",
         "title": "La ferme des animaux",
         "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
       },
       {
         "id": "p6",
         "title": "Liberté mon cul",
         "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
       },
       {
         "id": "p7",
         "title": "Flux",
         "pitch": "",
-        "presentationOptions": ["Extrait joué en live", "Le mot du directeur"]
+        "presentationOptions": ["Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
       }
     ]
   }

@@ -18,7 +18,7 @@ choix 2: le choix du directeur
 Choix 3: visionner le teaser 
 
 
-Pedro / Céline → Teaser ok 
+Pedro → Teaser ok 
 choix 1: extrait interprété par Jim et Julien 
 choix 2: le choix du directeur 
 Choix 3: visionner le teaser 

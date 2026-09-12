@@ -36,7 +36,7 @@ Les quiz sont définis dans `config/quiz-1.json`, `config/quiz-2.json`, `config/
         "id": "p1",
         "title": "Titre de la pièce",
         "pitch": "Résumé du pitch...",
-        "presentationOptions": ["Teaser vidéo", "Extrait joué en live", "Le mot du directeur"]
+        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
       }
     ]
   }

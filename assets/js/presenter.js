@@ -339,7 +339,7 @@ function renderQuizPanel(quizId) {
       <div class="card center stack" style="max-width:480px;margin:0 auto">
         <h2>${config.name}</h2>
         <p class="muted">${config.round1.pitches.length} pitchs — les ${config.round1.selectCount} meilleurs passent en manche 2</p>
-        <button id="start-${quizId}">Démarrer ce quiz</button>
+        <button id="start-${quizId}">Démarrer cette partie</button>
       </div>`;
     document.getElementById(`start-${quizId}`).addEventListener("click", () => startQuiz(quizId));
     return;
@@ -350,8 +350,8 @@ function renderQuizPanel(quizId) {
       <div class="card center stack" style="max-width:480px;margin:0 auto">
         <h2>${config.name}</h2>
         <p class="muted">${quizStatusLabel(quizId)}</p>
-        <p class="muted">Ce quiz est en pause — un autre quiz est affiché en ce moment.</p>
-        <button id="resume-${quizId}">Reprendre ce quiz</button>
+        <p class="muted">Cette partie est en pause — une autre partie est affichée en ce moment.</p>
+        <button id="resume-${quizId}">Reprendre cette partie</button>
       </div>`;
     document.getElementById(`resume-${quizId}`).addEventListener("click", () => resumeQuiz(quizId));
     return;
@@ -429,7 +429,7 @@ function renderQuizPanel(quizId) {
           ${
             quizState.phase === "round2-voting"
               ? `<button id="lock-r2">Verrouiller et voir le résultat</button>`
-              : `<button id="next-r2">${isLast ? "Terminer le quiz" : "Pièce suivante"}</button>`
+              : `<button id="next-r2">${isLast ? "Terminer la partie" : "Pièce suivante"}</button>`
           }
         </div>
       </div>`;
@@ -446,7 +446,7 @@ function renderQuizPanel(quizId) {
     const results = quizState.round2Results || [];
     el.innerHTML = `
       <div class="card stack" style="max-width:640px;margin:0 auto">
-        <span class="badge">Quiz terminé</span>
+        <span class="badge">Partie terminée</span>
         <h2>Récapitulatif</h2>
         <ul class="ranking-list">
           ${results
@@ -456,7 +456,7 @@ function renderQuizPanel(quizId) {
             .join("")}
         </ul>
         <div class="row" style="justify-content:center">
-          <button class="secondary" id="reset-quiz">Réinitialiser ce quiz</button>
+          <button class="secondary" id="reset-quiz">Réinitialiser cette partie</button>
         </div>
       </div>`;
     document.getElementById("reset-quiz").addEventListener("click", () => resetQuiz(quizId));

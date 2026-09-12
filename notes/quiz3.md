@@ -1,4 +1,4 @@
-Nom : troisième partie de saison 
+Nom : Deuxième partie de saison 
 Sélection des 3 premiers
 
 Épopées 

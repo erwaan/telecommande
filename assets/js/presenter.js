@@ -10,7 +10,8 @@ import {
   excludeParticipant,
   listenVotesForPitch,
   getVotesForQuizRound,
-  generateSessionCode
+  generateSessionCode,
+  listenAllFeedback
 } from "./session-service.js";
 import { loadQuizConfigs } from "./quiz-config.js";
 
@@ -25,6 +26,7 @@ const voteUnsub = {}; // quizId -> unsubscribe fn
 let unsubSession = null;
 let unsubParticipants = null;
 let activeDrawRunId = null; // runId dont l'animation de tirage est déjà lancée localement
+let feedbackList = []; // avis, toutes sessions confondues (persiste même sans session active)
 
 // ---------- Confirm modal ----------
 function confirmModal(message) {
@@ -104,6 +106,13 @@ async function boot() {
   document.getElementById("end-session-btn").addEventListener("click", onEndSession);
   document.getElementById("regen-session-btn").addEventListener("click", onRegenSession);
 
+  // Écoute indépendante de toute session : les avis restent visibles même
+  // après la fin ou la suppression de la session qui les a collectés.
+  listenAllFeedback((list) => {
+    feedbackList = list;
+    renderFeedback();
+  });
+
   const activeCode = await getActiveSessionCode();
   if (activeCode) attach(activeCode);
   else renderAll();
@@ -144,6 +153,7 @@ function showView(name) {
 function initViews() {
   document.getElementById("home-nav-btn").addEventListener("click", () => showView("home"));
   document.getElementById("session-mgmt-btn").addEventListener("click", () => showView("session"));
+  document.getElementById("feedback-nav-btn").addEventListener("click", () => showView("feedback"));
   document.getElementById("gift-btn").addEventListener("click", () => launchDraw());
   document.querySelectorAll(".quiz-home-btn").forEach((btn) => {
     btn.addEventListener("click", () => showView(btn.dataset.quiz));
@@ -184,6 +194,7 @@ function attach(code) {
   unsubParticipants = listenParticipants(code, (list) => {
     participants = list;
     renderParticipants();
+    renderDraw();
     if (currentSession && currentSession.activeQuizId) {
       renderQuizPanel(currentSession.activeQuizId);
     }
@@ -270,7 +281,10 @@ function renderParticipants() {
   list.innerHTML = "";
   participants.forEach((p) => {
     const li = document.createElement("li");
-    li.textContent = p.name;
+    li.innerHTML = `
+      <span class="participant-name">${escapeHtml(p.name)}</span>
+      ${p.avis ? `<span class="participant-avis">« ${escapeHtml(p.avis)} »</span>` : ""}`;
+    if (p.avis) li.classList.add("has-avis");
     if (p.excluded) li.classList.add("excluded");
     li.title = "Double-clic pour exclure";
     li.addEventListener("dblclick", async () => {
@@ -280,6 +294,32 @@ function renderParticipants() {
     });
     list.appendChild(li);
   });
+}
+
+// ---------- Avis (persistants, toutes sessions confondues) ----------
+function renderFeedback() {
+  const list = document.getElementById("feedback-list");
+  const countBadge = document.getElementById("feedback-count");
+  if (!list) return;
+  countBadge.textContent = String(feedbackList.length);
+
+  if (feedbackList.length === 0) {
+    list.innerHTML = `<li class="muted center">Aucun avis pour l'instant.</li>`;
+    return;
+  }
+
+  list.innerHTML = feedbackList
+    .map(
+      (f) => `
+      <li>
+        <div class="spread">
+          <span class="participant-name">${escapeHtml(f.name || "?")}</span>
+          <span class="muted">${escapeHtml(f.code || "")}</span>
+        </div>
+        <span class="participant-avis">« ${escapeHtml(f.avis || "")} »</span>
+      </li>`
+    )
+    .join("");
 }
 
 // ---------- Vote listener management ----------
@@ -469,6 +509,7 @@ function renderQuizPanel(quizId) {
 // ---------- State transitions ----------
 async function startQuiz(quizId) {
   await updateSession(currentCode, {
+    activeScreen: "quiz",
     activeQuizId: quizId,
     [`quizzes.${quizId}`]: {
       activeRunId: generateSessionCode(8),
@@ -483,7 +524,7 @@ async function startQuiz(quizId) {
 }
 
 async function resumeQuiz(quizId) {
-  await updateSession(currentCode, { activeQuizId: quizId });
+  await updateSession(currentCode, { activeScreen: "quiz", activeQuizId: quizId });
 }
 
 async function nextRound1Pitch(quizId) {
@@ -575,31 +616,61 @@ async function resetQuiz(quizId) {
 
 // ---------- Tirage au sort ----------
 async function launchDraw() {
-  const eligible = participants.filter((p) => !p.excluded);
   showView("draw");
-  const el = document.getElementById("draw-content");
+  await updateSession(currentCode, {
+    activeScreen: "draw",
+    draw: { runId: generateSessionCode(8), status: "registration", count: 0, winnerId: null, winnerIds: [] }
+  });
+}
 
-  if (eligible.length === 0) {
-    activeDrawRunId = null;
-    el.innerHTML = `<div class="card center"><p class="muted">Aucun participant inscrit pour l'instant.</p></div>`;
-    return;
-  }
+function drawEligibleParticipants(draw) {
+  return participants.filter(
+    (p) => !p.excluded && p.drawRunId === draw.runId && p.ticketNumber != null
+  );
+}
 
-  el.innerHTML = `
-    <div class="draw-stage">
-      <span class="badge">Tirage au sort</span>
-      <div class="draw-number">•••</div>
-      <p class="muted">Préparation du tirage...</p>
-    </div>`;
+// Identifie une animation de tirage précise : un "redraw" garde le même runId
+// (les inscriptions ne sont pas remises à zéro) mais incrémente drawSeq, pour
+// distinguer ce nouveau tirage du précédent qui a le même runId.
+function drawKey(draw) {
+  return `${draw.runId}-${draw.drawSeq || 1}`;
+}
 
-  const shuffled = [...eligible].sort(() => Math.random() - 0.5);
+function remainingDrawCandidates(draw) {
+  const winnerIds = draw.winnerIds || [];
+  return drawEligibleParticipants(draw).filter((p) => !winnerIds.includes(p.id));
+}
+
+async function startDrawing() {
+  const draw = currentSession && currentSession.draw;
+  if (!draw || draw.status !== "registration") return;
+  const eligible = drawEligibleParticipants(draw);
+  if (eligible.length === 0) return;
+
   const tickets = {};
-  shuffled.forEach((p, i) => {
-    tickets[p.id] = i + 1;
+  eligible.forEach((p) => {
+    tickets[p.id] = p.ticketNumber;
   });
 
   await updateSession(currentCode, {
-    draw: { runId: generateSessionCode(8), status: "drawing", tickets, winnerId: null }
+    "draw.status": "drawing",
+    "draw.tickets": tickets,
+    "draw.drawSeq": 1,
+    "draw.winnerIds": []
+  });
+}
+
+// Retire un nom parmi les inscrits qui n'ont pas encore été tirés (ex: le
+// premier gagnant est déjà parti), sans rouvrir les inscriptions : les avis
+// et cases à cocher déjà transmis par les autres participants ne sont pas
+// redemandés.
+async function redrawWinner() {
+  const draw = currentSession && currentSession.draw;
+  if (!draw || draw.status !== "revealed") return;
+  if (remainingDrawCandidates(draw).length === 0) return;
+  await updateSession(currentCode, {
+    "draw.status": "drawing",
+    "draw.drawSeq": (draw.drawSeq || 1) + 1
   });
 }
 
@@ -614,33 +685,67 @@ function renderDraw() {
     return;
   }
 
+  if (draw.status === "registration") {
+    activeDrawRunId = null;
+    renderDrawRegistration(draw);
+    return;
+  }
+
   if (draw.status === "revealed") {
-    activeDrawRunId = draw.runId;
+    activeDrawRunId = drawKey(draw);
     const winner = participants.find((p) => p.id === draw.winnerId);
+    const remaining = remainingDrawCandidates(draw);
     el.innerHTML = `
       <div class="draw-stage">
         <span class="badge">Tirage au sort</span>
         <div class="draw-number draw-number-landed">${formatTicket(draw.tickets[draw.winnerId])}</div>
         <div class="draw-winner-name">🎉 ${escapeHtml(winner ? winner.name : "?")} 🎉</div>
+        ${
+          remaining.length > 0
+            ? `<button id="redraw-btn" class="secondary">Tirer un autre nom</button>`
+            : `<p class="muted">Tous les inscrits ont déjà été tirés au sort.</p>`
+        }
       </div>`;
+    const redrawBtn = document.getElementById("redraw-btn");
+    if (redrawBtn) redrawBtn.addEventListener("click", redrawWinner);
     return;
   }
 
-  if (activeDrawRunId === draw.runId) return;
-  activeDrawRunId = draw.runId;
+  const key = drawKey(draw);
+  if (activeDrawRunId === key) return;
+  activeDrawRunId = key;
   startDrawAnimation(draw);
 }
 
+function renderDrawRegistration(draw) {
+  const el = document.getElementById("draw-content");
+  const registered = drawEligibleParticipants(draw).length;
+  const total = participants.filter((p) => !p.excluded).length;
+
+  el.innerHTML = `
+    <div class="draw-stage">
+      <span class="badge">Tirage au sort</span>
+      <h2 class="draw-registration-title">Merci d'être venu !</h2>
+      <p class="draw-registration-text">Pour vous remercier, gagnez 2 places pour le spectacle de votre choix</p>
+      <p class="draw-registration-count">${registered} inscrit${registered > 1 ? "s" : ""} / ${total} joueur${total > 1 ? "s" : ""}</p>
+      <button id="start-drawing-btn" ${registered === 0 ? "disabled" : ""}>Tirer au sort</button>
+    </div>`;
+  document.getElementById("start-drawing-btn").addEventListener("click", startDrawing);
+}
+
 function formatTicket(n) {
-  return `N° ${String(n).padStart(3, "0")}`;
+  return `N° ${String(n).padStart(4, "0")}`;
 }
 
 function startDrawAnimation(draw) {
   const el = document.getElementById("draw-content");
-  const ids = Object.keys(draw.tickets);
+  const winnerIds = draw.winnerIds || [];
   const numbers = Object.values(draw.tickets);
-  const winnerId = ids[Math.floor(Math.random() * ids.length)];
+  const eligibleIds = Object.keys(draw.tickets).filter((id) => !winnerIds.includes(id));
+  if (eligibleIds.length === 0) return;
+  const winnerId = eligibleIds[Math.floor(Math.random() * eligibleIds.length)];
   const winningNumber = draw.tickets[winnerId];
+  const key = drawKey(draw);
 
   el.innerHTML = `
     <div class="draw-stage">
@@ -655,17 +760,18 @@ function startDrawAnimation(draw) {
   const totalDuration = 2800;
 
   function tick() {
-    if (activeDrawRunId !== draw.runId) return;
+    if (activeDrawRunId !== key) return;
     const elapsed = Date.now() - start;
     if (elapsed >= totalDuration) {
       numberEl.textContent = formatTicket(winningNumber);
       numberEl.classList.add("draw-number-landed");
       statusEl.textContent = "Et le/la gagnant·e est...";
       setTimeout(() => {
-        if (activeDrawRunId !== draw.runId) return;
+        if (activeDrawRunId !== key) return;
         updateSession(currentCode, {
           "draw.status": "revealed",
-          "draw.winnerId": winnerId
+          "draw.winnerId": winnerId,
+          "draw.winnerIds": [...winnerIds, winnerId]
         });
       }, 2200);
       return;

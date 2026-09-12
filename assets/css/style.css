@@ -142,7 +142,7 @@ button.secondary:hover { background: var(--color-surface-alt); }
 button.danger { background: var(--color-danger); }
 button.danger:hover { background: var(--color-danger-dim); }
 
-input, select {
+input, select, textarea {
   font-family: var(--font);
   font-size: 1rem;
   padding: 0.75rem 0.95rem;
@@ -151,8 +151,9 @@ input, select {
   background: var(--color-surface);
   color: var(--color-ink);
 }
-input::placeholder { color: var(--color-ink-dim); }
-input:focus, select:focus { outline: none; border-color: var(--color-purple); }
+textarea { resize: vertical; }
+input::placeholder, textarea::placeholder { color: var(--color-ink-dim); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--color-purple); }
 
 label {
   font-family: var(--font-heading);
@@ -393,6 +394,22 @@ label {
   60% { transform: scale(1.08); opacity: 1; }
   100% { transform: scale(1); }
 }
+.draw-registration-title {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  color: var(--color-magenta);
+  font-size: clamp(2rem, 3vw, 3rem);
+}
+.draw-registration-text {
+  font-size: 1.3rem;
+  color: var(--color-ink-dim);
+  max-width: 600px;
+}
+.draw-registration-count {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  color: var(--color-purple);
+}
 
 .home-quiz-grid {
   display: flex;
@@ -477,6 +494,10 @@ label {
 }
 .participant-list li:hover { outline: 2px dashed var(--color-orange); cursor: pointer; }
 .participant-list li.excluded { opacity: 0.4; text-decoration: line-through; }
+.participant-list li.has-avis { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+.participant-avis { color: var(--color-ink-dim); font-style: italic; font-size: 0.85rem; }
+.feedback-list li { flex-direction: column; align-items: stretch; gap: 0.35rem; cursor: default; }
+.feedback-list li:hover { outline: none; cursor: default; }
 
 .pitch-title {
   font-family: var(--font-accent);
@@ -563,33 +584,81 @@ label {
   max-width: 320px;
 }
 
-/* ---------- Ticket de tombola + tirage au sort ---------- */
-.ticket-badge {
-  position: fixed;
-  bottom: 1rem;
-  right: 1rem;
-  background: var(--color-surface);
-  border: 2px dashed var(--color-ink);
-  border-radius: 10px;
-  padding: 0.5rem 0.9rem;
+/* ---------- Tirage au sort : formulaire + ticket (téléphone) ---------- */
+.draw-registration {
+  flex: 1;
+  justify-content: center;
   text-align: center;
-  box-shadow: 4px 4px 0 rgba(28, 26, 23, 0.12);
-  z-index: 500;
 }
-.ticket-badge .ticket-label {
-  display: block;
+.draw-registration h2 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  color: var(--color-magenta);
+  font-size: 1.7rem;
+}
+.draw-registration label {
+  text-align: left;
+}
+.draw-registration textarea {
+  text-align: left;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  text-align: left;
+  font-family: var(--font);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--color-ink);
+  font-size: 0.9rem;
+}
+.checkbox-row input[type="checkbox"] {
+  width: 1.3rem;
+  height: 1.3rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  accent-color: var(--color-magenta);
+}
+
+.draw-ticket-screen {
+  flex: 1;
+  justify-content: center;
+  gap: 1.5rem;
+}
+.raffle-ticket {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2.2rem 1.5rem;
+  background: var(--color-surface);
+  border: 3px dashed var(--color-ink);
+  border-radius: var(--radius-cut);
+  box-shadow: 8px 8px 0 rgba(28, 26, 23, 0.1);
+}
+.raffle-ticket-label {
   font-family: var(--font-heading);
-  font-size: 0.62rem;
   font-weight: 800;
+  font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--color-ink-dim);
-}
-.ticket-badge .ticket-number {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 1.3rem;
   color: var(--color-magenta);
+}
+.raffle-ticket-number {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 14vw, 3.5rem);
+  letter-spacing: 0.05em;
+  color: var(--color-ink);
+}
+.raffle-ticket-name {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: var(--color-ink-dim);
+  text-transform: uppercase;
 }
 
 .winner-overlay {

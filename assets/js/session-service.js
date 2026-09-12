@@ -10,7 +10,8 @@ import {
   query,
   where,
   orderBy,
-  serverTimestamp
+  serverTimestamp,
+  runTransaction
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans 0/O/1/I pour éviter les confusions
@@ -36,6 +37,7 @@ export async function createSession() {
   await setDoc(sessionRef, {
     status: "active",
     createdAt: serverTimestamp(),
+    activeScreen: null,
     activeQuizId: null,
     quizzes: {}
   });
@@ -153,4 +155,61 @@ export async function getVotesForQuizRound(code, quizId, runId, round) {
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => d.data());
+}
+
+// ---------- Tirage au sort : inscription d'un participant ----------
+// Attribue un numéro de ticket aléatoire entre 1 et 9999 de façon atomique via
+// une transaction, pour éviter que deux téléphones se retrouvent avec le même
+// numéro quand plusieurs s'inscrivent en même temps.
+const TICKET_MAX = 9999;
+
+export async function registerForDraw(code, participantId, avis, name) {
+  const sessionRef = doc(db, "sessions", code);
+  const participantRef = doc(db, "sessions", code, "participants", participantId);
+  const ticketNumber = await runTransaction(db, async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    const draw = sessionSnap.exists() ? sessionSnap.data().draw : null;
+    if (!draw || draw.status !== "registration") {
+      throw new Error("REGISTRATION_CLOSED");
+    }
+    const usedNumbers = draw.usedNumbers || [];
+    let number;
+    do {
+      number = 1 + Math.floor(Math.random() * TICKET_MAX);
+    } while (usedNumbers.includes(number));
+    tx.update(sessionRef, {
+      "draw.count": (draw.count || 0) + 1,
+      "draw.usedNumbers": [...usedNumbers, number]
+    });
+    tx.update(participantRef, {
+      avis,
+      drawRunId: draw.runId,
+      ticketNumber: number
+    });
+    return number;
+  });
+
+  // Copie durable de l'avis, indépendante des sessions : écrite à part (pas
+  // dans la transaction ci-dessus) pour qu'un souci sur cette copie (ex. règles
+  // Firestore pas encore republiées) ne fasse jamais échouer l'inscription au
+  // tirage elle-même, qui est ce qui compte pour le participant.
+  try {
+    await setDoc(doc(db, "feedback", `${code}_${participantId}`), {
+      code,
+      participantId,
+      name: name || "?",
+      avis,
+      createdAt: serverTimestamp()
+    });
+  } catch (e) {
+    console.error("Copie durable de l'avis impossible (l'inscription au tirage est quand même validée) :", e);
+  }
+
+  return ticketNumber;
+}
+
+// ---------- Avis : consultation durable, indépendante des sessions ----------
+export function listenAllFeedback(callback) {
+  const q = query(collection(db, "feedback"), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
 }

@@ -11,7 +11,9 @@ import {
   where,
   orderBy,
   serverTimestamp,
-  runTransaction
+  runTransaction,
+  disableNetwork,
+  enableNetwork
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans 0/O/1/I pour éviter les confusions
@@ -53,10 +55,25 @@ export async function endSession(code) {
   }
 }
 
-export function listenSession(code, callback) {
-  return onSnapshot(doc(db, "sessions", code), (snap) => {
-    callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-  });
+export function listenSession(code, callback, onError) {
+  return onSnapshot(
+    doc(db, "sessions", code),
+    (snap) => {
+      callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+    },
+    onError
+  );
+}
+
+// Force la réouverture du canal temps réel avec Firestore. Sur mobile, quand
+// l'onglet passe en arrière-plan (écran verrouillé, changement d'appli), le
+// navigateur peut couper la connexion sans que le SDK s'en aperçoive : les
+// écouteurs restent alors muets jusqu'à un rechargement de la page. Couper puis
+// rétablir le réseau oblige le SDK à rouvrir le canal et à resynchroniser tous
+// les écouteurs actifs.
+export async function reconnectRealtime() {
+  await disableNetwork(db);
+  await enableNetwork(db);
 }
 
 export async function updateSession(code, updates) {
@@ -94,10 +111,11 @@ export async function joinSession(code, name, participantId) {
   return participantId;
 }
 
-export function listenParticipant(code, participantId, callback) {
+export function listenParticipant(code, participantId, callback, onError) {
   return onSnapshot(
     doc(db, "sessions", code, "participants", participantId),
-    (snap) => callback(snap.exists() ? { id: snap.id, ...snap.data() } : null)
+    (snap) => callback(snap.exists() ? { id: snap.id, ...snap.data() } : null),
+    onError
   );
 }
 
@@ -132,6 +150,16 @@ export async function castVote(code, { quizId, runId, round, pitchId, participan
     points: points ?? null,
     createdAt: serverTimestamp()
   });
+}
+
+// Relit le vote déjà déposé par un participant pour un pitch donné (utile
+// quand le présentateur revient en arrière : le téléphone réaffiche le choix
+// précédent même si la page a été rechargée entre-temps).
+export async function getMyVote(code, { quizId, runId, round, pitchId, participantId }) {
+  const snap = await getDoc(
+    doc(db, "sessions", code, "votes", voteDocId(quizId, runId, round, pitchId, participantId))
+  );
+  return snap.exists() ? snap.data() : null;
 }
 
 export function listenVotesForPitch(code, quizId, runId, round, pitchId, callback) {

@@ -38,25 +38,19 @@
         "id": "p5",
         "title": "Plock !",
         "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
-      },
-      {
-        "id": "p6",
-        "title": "Soleil planète",
-        "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
+        "presentationOptions": ["Teaser vidéo", "Julien et Jim vous proposent l'audio-description du teaser (Christian ne voulait pas qu'on repeigne l'église en live)", "Pourquoi ce choix Christian ?"]
       },
       {
         "id": "p7",
         "title": "Ballroom",
         "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
+        "presentationOptions": ["Teaser vidéo", "Christian fait une démonstration de jonglage en live (il n'est pas au courant qu'on a rajouté cette option)", "Pourquoi ce choix Christian ?"]
       },
       {
         "id": "p8",
         "title": "Tropisme poétique",
         "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
+        "presentationOptions": ["Teaser vidéo", "Julien et Jim vous proposent une expérience de télékinésie", "Pourquoi ce choix Christian ?"]
       }
     ]
   }

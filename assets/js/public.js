@@ -1,5 +1,13 @@
 import { ensureAuth } from "./firebase-init.js";
-import { joinSession, listenSession, listenParticipant, castVote, registerForDraw } from "./session-service.js";
+import {
+  joinSession,
+  listenSession,
+  listenParticipant,
+  castVote,
+  getMyVote,
+  registerForDraw,
+  reconnectRealtime
+} from "./session-service.js";
 import { loadQuizConfigs } from "./quiz-config.js";
 
 const STORAGE_KEY = "quizJoin";
@@ -101,32 +109,91 @@ function subscribe(code, name) {
   document.getElementById("session-view").classList.remove("hidden");
   document.getElementById("name-badge").textContent = name;
   document.getElementById("code-badge").textContent = code;
-
-  unsubSession = listenSession(code, (session) => {
-    if (!session || session.status !== "active") {
-      returnToJoin("La session est terminée.");
-      return;
-    }
-    lastSession = session;
-    renderContent(session);
-    checkWinnerCelebration(session);
-  });
-
-  unsubParticipant = listenParticipant(code, uid, (participant) => {
-    if (participant && participant.excluded) {
-      returnToJoin("Tu as été exclu de cette session.");
-      return;
-    }
-    currentParticipant = participant;
-    if (lastSession) renderContent(lastSession);
-  });
+  startListeners();
 }
 
-function returnToJoin(message) {
+function startListeners() {
+  stopListeners();
+  const code = currentCode;
+  if (!code) return;
+
+  unsubSession = listenSession(
+    code,
+    (session) => {
+      if (!session || session.status !== "active") {
+        returnToJoin("La session est terminée.");
+        return;
+      }
+      lastSession = session;
+      renderContent(session);
+      checkWinnerCelebration(session);
+    },
+    onListenerError
+  );
+
+  unsubParticipant = listenParticipant(
+    code,
+    uid,
+    (participant) => {
+      if (participant && participant.excluded) {
+        returnToJoin("Tu as été exclu de cette session.");
+        return;
+      }
+      currentParticipant = participant;
+      if (lastSession) renderContent(lastSession);
+    },
+    onListenerError
+  );
+}
+
+function stopListeners() {
   if (unsubSession) unsubSession();
   if (unsubParticipant) unsubParticipant();
   unsubSession = null;
   unsubParticipant = null;
+}
+
+// ---------- Reconnexion automatique ----------
+// Symptôme observé en test : un téléphone reste figé sur un ancien écran (ou
+// ne reçoit plus rien) alors qu'un simple rechargement le remet à jour sans
+// rien ressaisir. Le stockage local est intact, seul le canal temps réel est
+// mort : cela arrive quand le navigateur mobile suspend l'onglet (écran
+// verrouillé, passage sur une autre appli, perte de réseau) et que le SDK ne
+// détecte pas la coupure. On force donc une reconnexion dès que la page
+// redevient visible ou que le réseau revient, et quand un écouteur tombe en
+// erreur.
+let reconnecting = false;
+
+async function reconnect(reason) {
+  if (!currentCode || reconnecting) return;
+  reconnecting = true;
+  console.log(`[reconnexion] ${reason}`);
+  try {
+    await reconnectRealtime();
+  } catch (e) {
+    console.error("Reconnexion réseau impossible :", e);
+  }
+  // Les écouteurs sont recréés pour repartir d'un état propre même si le
+  // canal était resté à moitié ouvert.
+  if (currentCode) startListeners();
+  reconnecting = false;
+}
+
+function onListenerError(err) {
+  console.error("Écoute Firestore interrompue :", err);
+  setTimeout(() => reconnect("erreur d'écoute"), 2000);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") reconnect("retour au premier plan");
+});
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted) reconnect("page restaurée depuis le cache");
+});
+window.addEventListener("online", () => reconnect("réseau retrouvé"));
+
+function returnToJoin(message) {
+  stopListeners();
   currentCode = null;
   currentParticipant = null;
   lastSession = null;
@@ -171,6 +238,7 @@ function renderContent(session) {
   if (quizState.phase === "round1-voting") {
     const pitch = config.round1.pitches[quizState.round1PitchIndex];
     const key = `${quizId}-${quizState.activeRunId}-r1-${quizState.round1PitchIndex}`;
+    restoreMyVote(key, { quizId, runId: quizState.activeRunId, round: 1, pitchId: pitch.id });
     renderVoteButtons(content, {
       title: pitch.title,
       text: pitch.pitch,
@@ -198,6 +266,7 @@ function renderContent(session) {
     const pitch = config.round1.pitches.find((p) => p.id === pitchId);
     const options = pitch.presentationOptions;
     const key = `${quizId}-${quizState.activeRunId}-r2-${quizState.round2PitchIndex}`;
+    restoreMyVote(key, { quizId, runId: quizState.activeRunId, round: 2, pitchId });
     renderVoteButtons(content, {
       title: pitch.title,
       text: pitch.pitch,
@@ -227,6 +296,22 @@ function renderContent(session) {
 
   // round1-final, round2-pitch-result : résultats révélés sur l'écran présentateur
   content.innerHTML = waitingScreen("🎭", "Résultats à l'écran !");
+}
+
+// Si on ne connaît pas encore localement le vote pour ce pitch (page rechargée,
+// ou présentateur revenu sur un pitch déjà voté), on le relit une fois depuis
+// la base et on réaffiche l'écran avec le bon bouton surligné.
+const voteLookups = new Set();
+function restoreMyVote(key, voteRef) {
+  if (myVotes[key] !== undefined || voteLookups.has(key)) return;
+  voteLookups.add(key);
+  getMyVote(currentCode, { ...voteRef, participantId: uid })
+    .then((vote) => {
+      if (!vote || myVotes[key] !== undefined) return;
+      myVotes[key] = vote.optionIndex;
+      if (lastSession) renderContent(lastSession);
+    })
+    .catch((e) => console.error("Relecture du vote impossible :", e));
 }
 
 function renderVoteButtons(content, { title, text, options, voteKey, onVote }) {

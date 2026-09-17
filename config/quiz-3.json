@@ -20,19 +20,19 @@
         "id": "p2",
         "title": "Le livre de K",
         "pitch": "",
-        "presentationOptions": ["Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
-      },
-      {
-        "id": "p3",
-        "title": "Code : oxygène",
-        "pitch": "",
         "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
       },
       {
         "id": "p4",
         "title": "Voûte",
         "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
+        "presentationOptions": ["Teaser vidéo", "On passe un coup de fil à l'équipe", "Pourquoi ce choix Christian ?"]
+      },
+      {
+        "id": "p3",
+        "title": "Code : oxygène",
+        "pitch": "",
+        "presentationOptions": ["On regarde le teaser", "On regarde le teaser", "On regarde le teaser (on insiste un peu mais c'est parce qu'il est vraiment bien)"]
       },
       {
         "id": "p5",
@@ -50,7 +50,7 @@
         "id": "p7",
         "title": "Flux",
         "pitch": "",
-        "presentationOptions": ["Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
+        "presentationOptions": ["Pourquoi ce choix Christian ?", "Pourquoi ce choix Christian ???", "Jim et Julien vont boire un coup pendant que Christian vous explique pourquoi ce choix"]
       }
     ]
   }

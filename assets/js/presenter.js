@@ -411,10 +411,12 @@ function renderQuizPanel(quizId) {
         <p class="pitch-text">${escapeHtml(pitch.pitch)}</p>
         <p class="muted">${total} vote${total > 1 ? "s" : ""} reçu${total > 1 ? "s" : ""} — ${participants.filter((p) => !p.excluded).length} inscrits</p>
         <div class="row" style="justify-content:center">
+          ${prevButtonHtml(quizId)}
           <button id="next-r1">${isLast ? "Voir le classement" : "Pitch suivant"}</button>
         </div>
       </div>`;
 
+    bindPrevButton(quizId);
     document.getElementById("next-r1").addEventListener("click", () => nextRound1Pitch(quizId));
     return;
   }
@@ -433,9 +435,11 @@ function renderQuizPanel(quizId) {
             .join("")}
         </ul>
         <div class="row" style="justify-content:center">
+          ${prevButtonHtml(quizId)}
           <button id="start-r2">Démarrer la manche 2</button>
         </div>
       </div>`;
+    bindPrevButton(quizId);
     document.getElementById("start-r2").addEventListener("click", () => startRound2(quizId));
     return;
   }
@@ -466,6 +470,7 @@ function renderQuizPanel(quizId) {
             .join("")}
         </div>
         <div class="row" style="justify-content:center">
+          ${prevButtonHtml(quizId)}
           ${
             quizState.phase === "round2-voting"
               ? `<button id="lock-r2">Verrouiller et voir le résultat</button>`
@@ -474,6 +479,7 @@ function renderQuizPanel(quizId) {
         </div>
       </div>`;
 
+    bindPrevButton(quizId);
     if (quizState.phase === "round2-voting") {
       document.getElementById("lock-r2").addEventListener("click", () => lockRound2Pitch(quizId));
     } else {
@@ -496,14 +502,81 @@ function renderQuizPanel(quizId) {
             .join("")}
         </ul>
         <div class="row" style="justify-content:center">
+          ${prevButtonHtml(quizId)}
           <button class="secondary" id="reset-quiz">Réinitialiser cette partie</button>
         </div>
       </div>`;
+    bindPrevButton(quizId);
     document.getElementById("reset-quiz").addEventListener("click", () => resetQuiz(quizId));
     return;
   }
 
   el.innerHTML = `<div class="card"><p class="muted">État inconnu.</p></div>`;
+}
+
+// ---------- Navigation arrière ----------
+// Chaque clic "Précédent" annule exactement un clic "Suivant" : on remet la
+// session dans l'état précédent, et les téléphones (qui écoutent la session)
+// réaffichent l'écran correspondant. Les votes sont stockés un par
+// participant et par pitch, donc rouvrir un vote permet de voter pour la
+// première fois ou de changer d'avis sans dupliquer quoi que ce soit.
+function computePreviousState(quizId, quizState) {
+  const config = configs[quizId];
+  if (!quizState) return null;
+
+  if (quizState.phase === "round1-voting") {
+    if (quizState.round1PitchIndex <= 0) return null;
+    return { [`quizzes.${quizId}.round1PitchIndex`]: quizState.round1PitchIndex - 1 };
+  }
+  if (quizState.phase === "round1-final") {
+    // Le classement sera recalculé au prochain "Voir le classement".
+    return {
+      [`quizzes.${quizId}.phase`]: "round1-voting",
+      [`quizzes.${quizId}.round1PitchIndex`]: config.round1.pitches.length - 1,
+      [`quizzes.${quizId}.round1Results`]: null,
+      [`quizzes.${quizId}.selectedPitchIds`]: []
+    };
+  }
+  if (quizState.phase === "round2-voting") {
+    if (quizState.round2PitchIndex <= 0) {
+      return { [`quizzes.${quizId}.phase`]: "round1-final", [`quizzes.${quizId}.round2PitchIndex`]: 0 };
+    }
+    return {
+      [`quizzes.${quizId}.phase`]: "round2-pitch-result",
+      [`quizzes.${quizId}.round2PitchIndex`]: quizState.round2PitchIndex - 1
+    };
+  }
+  if (quizState.phase === "round2-pitch-result") {
+    // Déverrouille le vote de la pièce en cours.
+    return { [`quizzes.${quizId}.phase`]: "round2-voting" };
+  }
+  if (quizState.phase === "quiz-done") {
+    // Le récapitulatif sera recalculé au prochain "Terminer la partie".
+    return {
+      [`quizzes.${quizId}.phase`]: "round2-pitch-result",
+      [`quizzes.${quizId}.round2PitchIndex`]: Math.max(0, (quizState.selectedPitchIds || []).length - 1),
+      [`quizzes.${quizId}.round2Results`]: null
+    };
+  }
+  return null;
+}
+
+function prevButtonHtml(quizId) {
+  const quizState = currentSession && currentSession.quizzes && currentSession.quizzes[quizId];
+  if (!computePreviousState(quizId, quizState)) return "";
+  return `<button class="secondary" id="prev-${quizId}" title="Revenir à l'étape précédente">← Précédent</button>`;
+}
+
+function bindPrevButton(quizId) {
+  const btn = document.getElementById(`prev-${quizId}`);
+  if (btn) btn.addEventListener("click", () => previousStep(quizId));
+}
+
+async function previousStep(quizId) {
+  const quizState = currentSession && currentSession.quizzes && currentSession.quizzes[quizId];
+  const updates = computePreviousState(quizId, quizState);
+  if (!updates) return;
+  await updateSession(currentCode, updates);
 }
 
 // ---------- State transitions ----------

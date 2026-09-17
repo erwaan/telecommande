@@ -32,25 +32,25 @@
         "id": "p4",
         "title": "Pedro",
         "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
+        "presentationOptions": ["Teaser vidéo", "Pourquoi ce choix Christian ?"]
       },
       {
         "id": "p5",
         "title": "Fusées",
         "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
+        "presentationOptions": ["Pourquoi ce choix Christian ?", "Oui c'est vrai ça, pourquoi ce choix Christian ?", "Jim et Julien vont boire un coup pendant que Christian vous explique pourquoi ce choix"]
       },
       {
         "id": "p6",
         "title": "Pulse(s) + Amazigh in situ",
         "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
+        "presentationOptions": ["Teaser vidéo", "Julien et Jim vous proposent l'audio-description du teaser (à vos risques et périls)", "Pourquoi ce choix Christian ?"]
       },
       {
         "id": "p7",
         "title": "Ghetto",
         "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
+        "presentationOptions": ["Teaser vidéo", "Jim fait une démonstration de fakirisme", "Pourquoi ce choix Christian ?"]
       },
       {
         "id": "p8",
@@ -62,7 +62,7 @@
         "id": "p9",
         "title": "Voyage au bout de l'ennui",
         "pitch": "",
-        "presentationOptions": ["Teaser vidéo", "Jim et Julien jouent un extrait", "Pourquoi ce choix Christian ?"]
+        "presentationOptions": ["Teaser vidéo", "Le chorégraphe présente son spectacle", "Pourquoi ce choix Christian ?"]
       },
       {
         "id": "p10",

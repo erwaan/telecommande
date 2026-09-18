@@ -415,8 +415,8 @@ function renderDrawTicket(content, draw) {
   let statusLine = "Ticket enregistré — bonne chance !";
   if (draw.status === "drawing") statusLine = "Tirage en cours...";
   if (draw.status === "revealed") {
-    statusLine =
-      draw.winnerId === uid ? "🎉 Tu as gagné ! 🎉" : "Le tirage est terminé, ce sera pour une prochaine fois !";
+    const hasWon = (draw.winnerIds || []).includes(uid);
+    statusLine = hasWon ? "🎉 Tu as gagné ! 🎉" : "Le tirage est terminé, ce sera pour une prochaine fois !";
   }
   content.innerHTML = `
     <div class="stack center draw-ticket-screen">
